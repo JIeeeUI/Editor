@@ -27,12 +27,12 @@ main { flex: 1; min-height: 0; width: 100%; max-width: 1400px; margin: 0 auto; p
   display: none; align-items: center; gap: 8px; padding: 8px 12px;
   background: #fff; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.15);
   flex-wrap: nowrap; width: max-content; max-width: calc(100% - 20px); 
-  overflow-x: auto; scrollbar-width: none; /* 파이어폭스 */
-  cursor: grab; /* ★ 드래그 가능 표시 */
+  overflow-x: auto; scrollbar-width: none;
+  cursor: grab;
 }
-#floating-toolbar::-webkit-scrollbar { display: none; } /* 크롬/사파리 */
+#floating-toolbar::-webkit-scrollbar { display: none; }
 #floating-toolbar.show { display: flex; }
-#floating-toolbar:active { cursor: grabbing; } /* ★ 잡고 있을 때 커서 */
+#floating-toolbar:active { cursor: grabbing; }
 
 .tb-group { display: flex; align-items: center; gap: 4px; flex-shrink: 0; padding-right: 8px; margin-right: 4px; border-right: 1px solid #e5e7eb; }
 .tb-group:last-child { border-right: none; padding-right: 0; margin-right: 0; }
@@ -44,7 +44,15 @@ main { flex: 1; min-height: 0; width: 100%; max-width: 1400px; margin: 0 auto; p
 .tb-input-wrap button { padding: 4px 8px; font-size: 15px; font-weight: bold; background: transparent; border: none; cursor: pointer; }
 .tb-input-wrap button:hover { background: #e5e7eb; border-radius: 4px; }
 .tb-input-wrap input { width: 38px; text-align: center; font-size: 14px; font-weight: bold; background: transparent; border: none; outline: none; }
-.tb-popover { position: absolute; top: calc(100% + 8px); right: 0; width: 220px; display: none; flex-direction: column; gap: 10px; padding: 12px; background: #fff; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.1); z-index: 1001; }
+
+/* ★ 수정된 팝업 스타일 (fixed 및 z-index 적용) */
+.tb-popover { 
+  position: fixed; 
+  z-index: 10000; 
+  width: 220px; display: none; flex-direction: column; gap: 10px; padding: 12px; 
+  background: #fff; border: 1px solid var(--border); border-radius: 8px; 
+  box-shadow: 0 4px 16px rgba(0,0,0,.1); 
+}
 .tb-popover.show { display: flex; }
 .tb-popover label { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
 .tb-popover input[type="range"] { width: 100%; }

@@ -34,12 +34,12 @@ const isMedia = (L) => L.type === "image" || L.type === "video";
 const firstLayer = newTextLayer();
 const state = { ratio: "1:1", layers: [firstLayer], selectedLayerId: firstLayer.id };
 
-const mediaCache = new Map();           // src -> HTMLImageElement | HTMLVideoElement
+const mediaCache = new Map();
 const measureCtx = document.createElement("canvas").getContext("2d");
 let renderQueued = false;
 let draggedLayerId = null;
 let isPlaying = false, animationFrameId = null;
-let drag = null;                        // 캔버스 드래그 상태 { mode, ... }
+let drag = null;
 
 const getSelectedLayer = () => state.layers.find((l) => l.id === state.selectedLayerId);
 const getCanvas = () => $("preview");
@@ -74,8 +74,30 @@ async function ensureFonts() {
       document.fonts.load('700 80px "Noto Sans KR"'),
       ...["Black Han Sans", "Nanum Gothic", "Nanum Myeongjo", "Nanum Pen Script"].map((f) => document.fonts.load(`80px "${f}"`)),
     ]);
-  } catch (_) { /* 폰트 로드 실패는 무시 */ }
+  } catch (_) { }
   await document.fonts.ready;
+}
+
+/* ★ 추가된 팝업 위치 계산 및 표시 함수 */
+function togglePopover(popoverEl, btnEl) {
+  if (popoverEl.classList.contains("show")) {
+    popoverEl.classList.remove("show");
+    return;
+  }
+  // 툴바의 overflow와 transform 영향을 피하기 위해 body로 이동
+  document.body.appendChild(popoverEl);
+  popoverEl.classList.add("show");
+
+  const rect = btnEl.getBoundingClientRect();
+  popoverEl.style.top = (rect.bottom + 8) + "px";
+  
+  const popoverWidth = popoverEl.offsetWidth;
+  let leftPos = rect.left + (rect.width / 2) - (popoverWidth / 2);
+  
+  // 화면 밖으로 나가지 않게 보정
+  if (leftPos + popoverWidth > window.innerWidth - 10) leftPos = window.innerWidth - popoverWidth - 10;
+  if (leftPos < 10) leftPos = 10;
+  popoverEl.style.left = leftPos + "px";
 }
 
 /* =========================================================
@@ -824,7 +846,8 @@ function bindToolbarEvents() {
   ["left", "center", "right"].forEach((a) => ($("tb-align-" + a).onclick = () => editText((L) => (L.align = a))));
 
   const popover = $("spacing-popover");
-  $("tb-spacing-btn").onclick = (e) => { e.stopPropagation(); popover.classList.toggle("show"); };
+  // ★ 수정된 부분: togglePopover 함수 사용
+  $("tb-spacing-btn").onclick = (e) => { e.stopPropagation(); togglePopover(popover, e.currentTarget); };
   
   document.addEventListener("click", () => {
     popover.classList.remove("show");
@@ -880,7 +903,8 @@ function bindImageToolbarEvents() {
 
   const cropBtn = $("img-crop-btn");
   const cropPopover = $("crop-popover");
-  cropBtn.onclick = (e) => { e.stopPropagation(); cropPopover.classList.toggle("show"); };
+  // ★ 수정된 부분: togglePopover 함수 사용
+  cropBtn.onclick = (e) => { e.stopPropagation(); togglePopover(cropPopover, e.currentTarget); };
   cropPopover.onclick = (e) => e.stopPropagation();
 
   const onCropChange = () => {
@@ -1013,7 +1037,6 @@ function initRatioScroll() {
   $("scroll-right").onclick = () => slider.scrollBy({ left: 150, behavior: "smooth" });
 }
 
-/* ★ 플로팅 툴바 드래그 스크롤 이벤트 */
 function initToolbarDragScroll() {
   const toolbar = $("floating-toolbar");
   let isDown = false;
@@ -1022,7 +1045,6 @@ function initToolbarDragScroll() {
   let dragged = false;
 
   toolbar.addEventListener("mousedown", (e) => {
-    // 입력창이나 셀렉트 박스를 클릭할 때는 드래그 스크롤 방지
     if (e.target.closest("input, select, button")) return;
 
     isDown = true;
@@ -1043,16 +1065,14 @@ function initToolbarDragScroll() {
     if (!isDown) return;
     e.preventDefault();
     const x = e.pageX - toolbar.offsetLeft;
-    const walk = (x - startX) * 1.5; // 드래그 감도 조절 (1.5배)
+    const walk = (x - startX) * 1.5;
     
-    // 일정 거리(5px) 이상 움직이면 드래그로 간주
     if (Math.abs(walk) > 5) {
       dragged = true;
     }
     toolbar.scrollLeft = scrollLeft - walk;
   });
 
-  // 드래그 중일 때는 클릭 이벤트(버튼 눌림 등)가 발생하지 않도록 방지
   toolbar.addEventListener("click", (e) => {
     if (dragged) {
       e.preventDefault();

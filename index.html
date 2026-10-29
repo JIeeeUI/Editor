@@ -52,6 +52,7 @@
           </div>
           <div class="tb-group" style="position: relative;">
             <button class="tb-btn" id="tb-spacing-btn" title="자간 및 줄 간격">↕ A</button>
+            <!-- 팝업 위치가 JS에 의해 자동 조절됩니다 -->
             <div class="tb-popover" id="spacing-popover">
               <div><label>자간 <span id="val-letter-spacing">0</span></label>
                 <input type="range" id="tb-letter-spacing" min="-10" max="50" value="0"></div>
@@ -87,6 +88,7 @@
           </div>
           <div class="tb-group" style="position:relative;">
             <button id="img-crop-btn" class="tb-btn" style="font-size:12px;">자르기</button>
+            <!-- 팝업 위치가 JS에 의해 자동 조절됩니다 -->
             <div class="tb-popover" id="crop-popover" style="width:200px;">
               <label>상단 <input type="range" id="crop-top" min="0" max="40" value="0"></label>
               <label>하단 <input type="range" id="crop-bottom" min="0" max="40" value="0"></label>
@@ -186,6 +188,7 @@
 <input type="file" id="hidden-media-input" accept="image/png, image/jpeg, video/mp4, video/webm" multiple hidden />
 <div id="drop-overlay"><div class="drop-msg"><span>📸</span>여기에 사진/동영상을 놓으세요 (여러 개 가능)</div></div>
 
+<!-- 스크립트 파일명이 edit.js로 수정됨 -->
 <script src="edit.js"></script>
 </body>
 </html>
