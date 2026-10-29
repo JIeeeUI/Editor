@@ -255,14 +255,15 @@ function getHandles(L, W, H) {
     const t = layoutText(measureCtx, L, W);
     box = { left: -t.width / 2, top: -t.height / 2, w: t.width, h: t.height };
   } else if (isMedia(L)) {
-    const w = W;
+    let w = W;
     let h = W * L.originalRatio;
     
     if (L.crop) {
       const cw = 1 - L.crop.left - L.crop.right;
       const ch = 1 - L.crop.top - L.crop.bottom;
       if (cw > 0.01 && ch > 0.01) {
-        h = w * L.originalRatio * (ch / cw);
+        w = W * cw;
+        h = W * L.originalRatio * ch;
       }
     }
     box = { left: -w / 2, top: -h / 2, w, h };
@@ -382,7 +383,7 @@ function renderCard(ctx, W, H) {
         const s = 1 + (L.saturation || 0) / 100;
         ctx.filter = `brightness(${b}) contrast(${c}) saturate(${s}) hue-rotate(${L.hue || 0}deg)`;
 
-        const dw = W;
+        let dw = W;
         let dh = W * L.originalRatio;
         
         let sx = 0, sy = 0, sw = media.width, sh = media.height;
@@ -394,7 +395,10 @@ function renderCard(ctx, W, H) {
             sy = media.height * L.crop.top;
             sw = media.width * cw;
             sh = media.height * ch;
-            dh = dw * L.originalRatio * (ch / cw);
+            
+            // ★ 수정된 부분: 이미지가 강제로 늘어나지 않고, 자른 만큼 크기가 줄어들도록 변경
+            dw = W * cw;
+            dh = W * L.originalRatio * ch;
           }
         }
         ctx.drawImage(media, sx, sy, sw, sh, -dw / 2, -dh / 2, dw, dh);
