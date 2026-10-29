@@ -45,7 +45,6 @@ main { flex: 1; min-height: 0; width: 100%; max-width: 1400px; margin: 0 auto; p
 .tb-input-wrap button:hover { background: #e5e7eb; border-radius: 4px; }
 .tb-input-wrap input { width: 38px; text-align: center; font-size: 14px; font-weight: bold; background: transparent; border: none; outline: none; }
 
-/* ★ 수정된 팝업 스타일 (fixed 및 z-index 적용) */
 .tb-popover { 
   position: fixed; 
   z-index: 10000; 
@@ -120,14 +119,10 @@ button.danger:hover { background: rgba(235,87,87,.1); }
 .ratio-group button.active { background: var(--purple-bg); border-color: var(--purple); color: var(--purple); }
 .ratio-group button.active .ratio-desc { color: var(--purple); }
 
-/* ===== 동영상 / 저장 / 템플릿 ===== */
-.video-controls { margin-top: 8px; padding: 8px; background: #f8f9fa; border: 1px solid var(--border); border-radius: 6px; }
-.time-info { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; font-weight: bold; color: var(--accent); }
-.play-btn-wrap { margin-top: 6px; }
-.play-btn-wrap button { width: 100%; padding: 6px; font-weight: bold; color: #fff; background: var(--accent); border: none; }
+/* ===== 저장 / 템플릿 ===== */
 .download-group { display: flex; gap: 6px; }
 .download-group button { flex: 1; padding: 8px; font-size: 13px; font-weight: bold; color: #fff; border: none; }
-.btn-png { background: var(--accent); } .btn-webm { background: var(--danger); }
+.btn-png { background: var(--accent); }
 #template-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 #template-list li { display: flex; align-items: center; gap: 4px; padding: 4px 6px; font-size: 12px; background: var(--field); border: 1px solid var(--border); border-radius: 4px; }
 #template-list li.empty { justify-content: center; padding: 8px; font-style: italic; color: var(--muted); }

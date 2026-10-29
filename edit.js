@@ -21,7 +21,6 @@ const DEFAULT_TEXT = {
 const DEFAULT_MEDIA = {
   type: "image", visible: true, src: "", x: 0.5, y: 0.5,
   scaleX: 1, scaleY: 1, rotation: 0, originalRatio: 1,
-  startTime: 0, endTime: 0, duration: 0,
   brightness: 0, contrast: 0, saturation: 0, hue: 0,
   crop: { top: 0, right: 0, bottom: 0, left: 0 }
 };
@@ -29,7 +28,7 @@ const DEFAULT_MEDIA = {
 const $ = (id) => document.getElementById(id);
 const uuid = () => crypto.randomUUID ? crypto.randomUUID() : "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
 const newTextLayer = (extra = {}) => ({ ...DEFAULT_TEXT, id: uuid(), ...extra });
-const isMedia = (L) => L.type === "image" || L.type === "video";
+const isMedia = (L) => L.type === "image";
 
 const firstLayer = newTextLayer();
 const state = { ratio: "1:1", layers: [firstLayer], selectedLayerId: firstLayer.id };
@@ -38,10 +37,8 @@ const mediaCache = new Map();
 const measureCtx = document.createElement("canvas").getContext("2d");
 let renderQueued = false;
 let draggedLayerId = null;
-let isPlaying = false, animationFrameId = null;
 let drag = null;
 
-// ★ 히스토리(실행 취소/다시 실행) 관련 변수
 let historyStack = [];
 let historyIndex = -1;
 let isRestoringHistory = false;
@@ -102,7 +99,6 @@ function togglePopover(popoverEl, btnEl) {
   popoverEl.style.left = leftPos + "px";
 }
 
-/* ★ 히스토리(Undo/Redo) 핵심 로직 */
 function saveHistoryState() {
   if (isRestoringHistory) return;
 
@@ -120,7 +116,7 @@ function saveHistoryState() {
 
   historyStack.push(snapshot);
   
-  if (historyStack.length > 50) { // 최대 50단계 저장
+  if (historyStack.length > 50) {
     historyStack.shift();
   } else {
     historyIndex++;
@@ -136,7 +132,7 @@ async function applyHistory(index) {
   
   for (const L of data.layers) {
     if (isMedia(L) && L.src && !mediaCache.has(L.src)) {
-      try { mediaCache.set(L.src, await loadMediaElement(L.src, L.type)); } catch {}
+      try { mediaCache.set(L.src, await loadMediaElement(L.src)); } catch {}
     }
   }
   
@@ -169,42 +165,31 @@ function updateUndoRedoButtons() {
 }
 
 /* =========================================================
-   3. 미디어 로딩
+   3. 미디어 로딩 (이미지만)
    ========================================================= */
-function loadMediaElement(src, type) {
+function loadMediaElement(src) {
   return new Promise((resolve, reject) => {
-    if (type === "video") {
-      const v = document.createElement("video");
-      v.crossOrigin = "anonymous"; v.muted = true; v.playsInline = true;
-      v.onloadedmetadata = () => resolve(v);
-      v.onerror = () => reject(new Error("동영상을 열 수 없습니다."));
-      v.src = src;
-    } else {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error("이미지를 열 수 없습니다."));
-      img.src = src;
-    }
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("이미지를 열 수 없습니다."));
+    img.src = src;
   });
 }
 
 async function addMediaLayer(file, isBatch = false) {
-  const isVideo = file.type.startsWith("video/");
-  const isImage = file.type === "image/png" || file.type === "image/jpeg";
-  if (!isVideo && !isImage) return false;
+  if (!file.type.startsWith("image/")) return false;
 
   try {
     const src = URL.createObjectURL(file);
-    const el = await loadMediaElement(src, isVideo ? "video" : "image");
+    const el = await loadMediaElement(src);
     mediaCache.set(src, el);
 
-    const originalRatio = isVideo ? el.videoHeight / el.videoWidth : el.height / el.width;
-    const duration = isVideo ? el.duration : 0;
+    const originalRatio = el.height / el.width;
     const jitter = () => (isBatch ? (Math.random() - 0.5) * 0.15 : 0);
 
     const layer = {
-      ...DEFAULT_MEDIA, id: uuid(), type: isVideo ? "video" : "image",
-      src, originalRatio, endTime: duration, duration,
+      ...DEFAULT_MEDIA, id: uuid(), type: "image",
+      src, originalRatio,
       x: 0.5 + jitter(), y: 0.5 + jitter(),
     };
     state.layers.push(layer);
@@ -222,8 +207,8 @@ async function handleMultipleFiles(files) {
   let ok = 0;
   for (const f of files) if (await addMediaLayer(f, isBatch)) ok++;
 
-  if (ok) { refreshUI(); saveHistoryState(); toast(`${ok}개의 파일이 추가되었습니다.`); }
-  else toast("지원하지 않는 파일 형식입니다.");
+  if (ok) { refreshUI(); saveHistoryState(); toast(`${ok}개의 사진이 추가되었습니다.`); }
+  else toast("지원하지 않는 이미지 형식입니다.");
 }
 
 /* =========================================================
@@ -381,7 +366,7 @@ function renderCard(ctx, W, H) {
     if (!L.visible) continue;
 
     const media = isMedia(L) ? mediaCache.get(L.src) : null;
-    const drawable = L.type === "text" || (media && !(L.type === "video" && media.readyState < 2));
+    const drawable = L.type === "text" || media;
 
     if (drawable) {
       ctx.save();
@@ -436,44 +421,8 @@ function requestRender() {
 }
 
 /* =========================================================
-   6. 동영상 재생 / 녹화
+   6. 다운로드 (PNG만)
    ========================================================= */
-const videoLayers = () => state.layers.filter((l) => l.type === "video" && l.visible);
-const getVideo = (L) => mediaCache.get(L.src);
-
-function startPlayback() {
-  if (isPlaying) return;
-  isPlaying = true;
-  $("preview-play-btn").textContent = "⏸ 정지";
-  $("floating-toolbar").classList.remove("show");
-
-  for (const L of videoLayers()) {
-    const v = getVideo(L);
-    if (v) { v.currentTime = L.startTime; v.play(); }
-  }
-  const loop = () => {
-    if (!isPlaying) return;
-    for (const L of videoLayers()) {
-      const v = getVideo(L);
-      if (v && (v.currentTime >= L.endTime || v.currentTime < L.startTime)) v.currentTime = L.startTime;
-    }
-    renderCard(getCanvas().getContext("2d"), ...RATIOS[state.ratio]);
-    animationFrameId = requestAnimationFrame(loop);
-  };
-  loop();
-}
-
-function stopPlayback() {
-  isPlaying = false;
-  cancelAnimationFrame(animationFrameId);
-  $("preview-play-btn").textContent = "▶ 미리보기 재생";
-  for (const L of state.layers.filter((l) => l.type === "video")) {
-    const v = getVideo(L);
-    if (v) { v.pause(); v.currentTime = L.startTime; }
-  }
-  requestRender();
-}
-
 async function handleDownloadPng() {
   const [W, H] = RATIOS[state.ratio];
   const c = document.createElement("canvas");
@@ -488,48 +437,6 @@ async function handleDownloadPng() {
   c.toBlob((blob) => downloadBlob(blob, `card-${state.ratio.replace(/[:.]/g, "-")}-${Date.now()}.png`), "image/png");
 }
 
-async function handleDownloadWebm() {
-  const vids = videoLayers();
-  if (!vids.length) return toast("동영상 레이어가 없습니다.");
-
-  stopPlayback();
-  toast("동영상을 녹화합니다...");
-  const prev = state.selectedLayerId;
-  state.selectedLayerId = null;
-
-  const [W, H] = RATIOS[state.ratio];
-  const canvas = getCanvas();
-  const ctx = canvas.getContext("2d");
-
-  vids.forEach((L) => { const v = getVideo(L); if (v) v.currentTime = L.startTime; });
-  await new Promise((r) => setTimeout(r, 100));
-  renderCard(ctx, W, H);
-
-  const recorder = new MediaRecorder(canvas.captureStream(30), { mimeType: "video/webm" });
-  const chunks = [];
-  recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-  recorder.onstop = () => {
-    downloadBlob(new Blob(chunks, { type: "video/webm" }), `card-video-${Date.now()}.webm`);
-    toast("동영상 저장 완료!");
-    state.selectedLayerId = prev;
-    requestRender();
-  };
-
-  const maxDuration = Math.max(...vids.map((L) => L.endTime - L.startTime));
-  vids.forEach((L) => { const v = getVideo(L); if (v) { v.currentTime = L.startTime; v.play(); } });
-
-  recorder.start();
-  const t0 = performance.now();
-  const tick = () => {
-    renderCard(ctx, W, H);
-    const allDone = vids.every((L) => { const v = getVideo(L); return !v || v.currentTime >= L.endTime; });
-    if ((performance.now() - t0) / 1000 < maxDuration && !allDone) return requestAnimationFrame(tick);
-    recorder.stop();
-    vids.forEach((L) => getVideo(L)?.pause());
-  };
-  tick();
-}
-
 /* =========================================================
    7. 레이어 목록 / 컨트롤 동기화
    ========================================================= */
@@ -537,7 +444,7 @@ function refreshUI() { syncControls(); renderLayerList(); requestRender(); }
 
 function layerLabel(L) {
   if (L.type === "text") return L.text.trim().substring(0, 12) || "(빈 텍스트)";
-  return L.type === "video" ? "동영상" : "이미지";
+  return "이미지";
 }
 
 function createLayerItem(L) {
@@ -561,7 +468,6 @@ function createLayerItem(L) {
   const thumb = document.createElement("div");
   thumb.className = "layer-thumb";
   if (L.type === "text") { thumb.textContent = "T"; thumb.style.cssText = `font-weight:bold;color:${L.color}`; }
-  else if (L.type === "video") { thumb.textContent = "🎬"; thumb.style.fontSize = "14px"; }
   else { const img = document.createElement("img"); img.src = L.src; thumb.appendChild(img); }
 
   const name = document.createElement("span");
@@ -626,7 +532,6 @@ function syncControls() {
 
   $("text-controls").style.display = isText ? "block" : "none";
   $("image-controls").style.display = isMediaType ? "block" : "none";
-  $("video-controls").style.display = L.type === "video" ? "block" : "none";
 
   if (isText) {
     $("text-input").value = L.text;
@@ -658,16 +563,7 @@ function syncControls() {
     $("scale-x-input").value = L.scaleX;
     $("scale-y-input").value = L.scaleY;
     $("rotation-input").value = Math.round(L.rotation * 180 / Math.PI);
-    
-    if (L.type === "video") {
-      $("video-start-input").max = $("video-end-input").max = L.duration;
-      $("video-start-input").value = L.startTime;
-      $("video-end-input").value = L.endTime;
-      $("start-time-text").textContent = L.startTime.toFixed(1) + "s";
-      $("end-time-text").textContent = L.endTime.toFixed(1) + "s";
-    }
   }
-  $("download-webm-btn").disabled = !state.layers.some((l) => l.type === "video");
 }
 
 /* =========================================================
@@ -699,7 +595,7 @@ async function applyDoc(doc) {
     });
     for (const L of state.layers) {
       if (isMedia(L) && L.src && !mediaCache.has(L.src)) {
-        try { mediaCache.set(L.src, await loadMediaElement(L.src, L.type)); } catch { }
+        try { mediaCache.set(L.src, await loadMediaElement(L.src)); } catch { }
       }
     }
   } else {
@@ -778,7 +674,7 @@ function importJson(file) {
 }
 
 /* =========================================================
-   9. 캔버스 상호작용 (선택 / 이동 / 크기 / 회전)
+   9. 캔버스 상호작용
    ========================================================= */
 function getCanvasCoords(e) {
   const canvas = getCanvas();
@@ -812,7 +708,6 @@ function hitTestLayer(x, y) {
 const CURSORS = { tl: "nwse-resize", br: "nwse-resize", tr: "nesw-resize", bl: "nesw-resize", tc: "ns-resize", bc: "ns-resize", ml: "ew-resize", mr: "ew-resize" };
 
 function onCanvasMouseDown(e) {
-  if (isPlaying) return;
   const { x, y } = getCanvasCoords(e);
   const L = getSelectedLayer();
 
@@ -875,7 +770,7 @@ function onWindowMouseMove(e) {
 }
 
 function onCanvasHover(e) {
-  if (drag || isPlaying) return;
+  if (drag) return;
   const canvas = getCanvas();
   const { x, y } = getCanvasCoords(e);
   const hit = hitTestHandle(x, y);
@@ -889,7 +784,7 @@ function initCanvasDrag() {
   canvas.addEventListener("mousemove", onCanvasHover);
   window.addEventListener("mousemove", onWindowMouseMove);
   window.addEventListener("mouseup", () => { 
-    if (drag) saveHistoryState(); // ★ 마우스 떼면 히스토리 저장
+    if (drag) saveHistoryState();
     drag = null; 
     canvas.style.cursor = "default"; 
   });
@@ -1066,31 +961,8 @@ function bindPropertyEvents() {
     saveHistoryState();
   };
 
-  // ★ Undo / Redo 버튼 이벤트 연결
   $("undo-btn").onclick = undo;
   $("redo-btn").onclick = redo;
-
-  $("video-start-input").oninput = (e) => {
-    const L = getSelectedLayer();
-    if (L?.type !== "video") return;
-    L.startTime = Math.min(Number(e.target.value), L.endTime - 0.1);
-    $("start-time-text").textContent = L.startTime.toFixed(1) + "s";
-    const v = getVideo(L);
-    if (v && !isPlaying) v.currentTime = L.startTime;
-    requestRender();
-  };
-  $("video-start-input").onchange = () => saveHistoryState();
-  
-  $("video-end-input").oninput = (e) => {
-    const L = getSelectedLayer();
-    if (L?.type !== "video") return;
-    L.endTime = Math.max(Number(e.target.value), L.startTime + 0.1);
-    $("end-time-text").textContent = L.endTime.toFixed(1) + "s";
-    requestRender();
-  };
-  $("video-end-input").onchange = () => saveHistoryState();
-  
-  $("preview-play-btn").onclick = () => (isPlaying ? stopPlayback() : startPlayback());
 }
 
 function bindOutputEvents() {
@@ -1103,8 +975,6 @@ function bindOutputEvents() {
     };
   });
   $("download-png-btn").onclick = handleDownloadPng;
-  $("download-webm-btn").onclick = handleDownloadWebm;
-
   $("save-template-btn").onclick = saveCurrentTemplate;
   $("export-json-btn").onclick = exportJson;
   
@@ -1216,7 +1086,6 @@ function initFileDrop() {
   });
 }
 
-/* ★ 키보드 단축키 (Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y) */
 function initKeyboardShortcuts() {
   window.addEventListener("keydown", (e) => {
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
@@ -1254,6 +1123,5 @@ function initKeyboardShortcuts() {
   renderLayerList();
   await drawPreview();
   
-  // 최초 상태 히스토리 저장
   saveHistoryState();
 })();

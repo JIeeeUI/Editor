@@ -12,7 +12,7 @@
 <body>
 <header>
   <h1>카드 스튜디오</h1>
-  <p class="hint">화면에 사진/동영상을 끌어다 놓거나, 상단에서 편집하세요.</p>
+  <p class="hint">화면에 사진을 끌어다 놓거나, 상단에서 편집하세요.</p>
 </header>
 
 <main>
@@ -116,7 +116,7 @@
             <button type="button" id="add-layer-btn">+ 레이어 추가</button>
             <div id="add-layer-menu" class="dropdown-menu hidden">
               <button type="button" id="menu-add-text">📝 텍스트 추가</button>
-              <button type="button" id="menu-add-media">🖼️ 사진 / 🎬 동영상</button>
+              <button type="button" id="menu-add-media">🖼️ 사진 추가</button>
             </div>
           </div>
           <button type="button" id="delete-layer-btn" class="danger">삭제</button>
@@ -139,13 +139,6 @@
           
           <button id="reset-transform-btn" style="width:100%; margin-top:4px;">크기 / 회전 초기화</button>
         </div>
-
-        <div id="video-controls" class="video-controls" style="display:none;">
-          <div class="time-info"><span id="start-time-text">0.0s</span> ~ <span id="end-time-text">0.0s</span></div>
-          <label>시작 시간 (자르기) <input type="range" id="video-start-input" min="0" max="100" step="0.1" value="0" /></label>
-          <label>끝 시간 (자르기) <input type="range" id="video-end-input" min="0" max="100" step="0.1" value="0" /></label>
-          <div class="play-btn-wrap"><button id="preview-play-btn">▶ 미리보기 재생</button></div>
-        </div>
       </fieldset>
 
       <fieldset>
@@ -167,8 +160,7 @@
       <fieldset>
         <legend>저장 / 백업</legend>
         <div class="download-group" style="margin-bottom: 6px;">
-          <button id="download-png-btn" class="btn-png">PNG 저장</button>
-          <button id="download-webm-btn" class="btn-webm" disabled>WebM 저장</button>
+          <button id="download-png-btn" class="btn-png" style="width: 100%;">PNG 저장</button>
         </div>
         <div style="display:flex; gap:6px; margin-bottom:6px;">
           <button id="export-json-btn" style="flex:1;">JSON 내보내기</button>
@@ -187,8 +179,9 @@
   </div>
 </main>
 
-<input type="file" id="hidden-media-input" accept="image/png, image/jpeg, video/mp4, video/webm" multiple hidden />
-<div id="drop-overlay"><div class="drop-msg"><span>📸</span>여기에 사진/동영상을 놓으세요 (여러 개 가능)</div></div>
+<!-- 이미지 파일만 받도록 수정 -->
+<input type="file" id="hidden-media-input" accept="image/png, image/jpeg" multiple hidden />
+<div id="drop-overlay"><div class="drop-msg"><span>📸</span>여기에 사진을 놓으세요 (여러 개 가능)</div></div>
 
 <script src="edit.js"></script>
 </body>
