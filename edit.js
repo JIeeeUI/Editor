@@ -78,13 +78,11 @@ async function ensureFonts() {
   await document.fonts.ready;
 }
 
-/* ★ 추가된 팝업 위치 계산 및 표시 함수 */
 function togglePopover(popoverEl, btnEl) {
   if (popoverEl.classList.contains("show")) {
     popoverEl.classList.remove("show");
     return;
   }
-  // 툴바의 overflow와 transform 영향을 피하기 위해 body로 이동
   document.body.appendChild(popoverEl);
   popoverEl.classList.add("show");
 
@@ -94,7 +92,6 @@ function togglePopover(popoverEl, btnEl) {
   const popoverWidth = popoverEl.offsetWidth;
   let leftPos = rect.left + (rect.width / 2) - (popoverWidth / 2);
   
-  // 화면 밖으로 나가지 않게 보정
   if (leftPos + popoverWidth > window.innerWidth - 10) leftPos = window.innerWidth - popoverWidth - 10;
   if (leftPos < 10) leftPos = 10;
   popoverEl.style.left = leftPos + "px";
@@ -846,7 +843,6 @@ function bindToolbarEvents() {
   ["left", "center", "right"].forEach((a) => ($("tb-align-" + a).onclick = () => editText((L) => (L.align = a))));
 
   const popover = $("spacing-popover");
-  // ★ 수정된 부분: togglePopover 함수 사용
   $("tb-spacing-btn").onclick = (e) => { e.stopPropagation(); togglePopover(popover, e.currentTarget); };
   
   document.addEventListener("click", () => {
@@ -903,7 +899,6 @@ function bindImageToolbarEvents() {
 
   const cropBtn = $("img-crop-btn");
   const cropPopover = $("crop-popover");
-  // ★ 수정된 부분: togglePopover 함수 사용
   cropBtn.onclick = (e) => { e.stopPropagation(); togglePopover(cropPopover, e.currentTarget); };
   cropPopover.onclick = (e) => e.stopPropagation();
 
@@ -1045,10 +1040,11 @@ function initToolbarDragScroll() {
   let dragged = false;
 
   toolbar.addEventListener("mousedown", (e) => {
+    dragged = false; // ★ 마우스를 누를 때마다 드래그 상태 초기화
+
     if (e.target.closest("input, select, button")) return;
 
     isDown = true;
-    dragged = false;
     startX = e.pageX - toolbar.offsetLeft;
     scrollLeft = toolbar.scrollLeft;
   });
