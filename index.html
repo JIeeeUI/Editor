@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>카드 스튜디오</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Nanum+Gothic:wght@400;700&family=Nanum+Myeongjo:wght@400;700&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <h1>카드 스튜디오</h1>
+  <p class="hint">화면에 사진/동영상을 끌어다 놓거나, 상단에서 편집하세요.</p>
+</header>
+
+<main>
+  <div class="editor">
+    <div class="preview-wrap">
+      <div id="floating-toolbar">
+        <!-- 텍스트 레이어용 툴바 -->
+        <div id="toolbar-text" style="display: contents;">
+          <div class="tb-group">
+            <select class="tb-select" id="tb-font-family">
+              <option value="'Noto Sans KR', sans-serif">Noto Sans</option>
+              <option value="'Black Han Sans', sans-serif">Black Han Sans</option>
+              <option value="'Nanum Gothic', sans-serif">Nanum Gothic</option>
+              <option value="'Nanum Myeongjo', serif">Nanum Myeongjo</option>
+              <option value="'Nanum Pen Script', cursive">Nanum Pen</option>
+            </select>
+          </div>
+          <div class="tb-group">
+            <div class="tb-input-wrap">
+              <button id="tb-size-minus">-</button>
+              <input type="number" id="tb-size-input" value="80" min="10" max="300">
+              <button id="tb-size-plus">+</button>
+            </div>
+          </div>
+          <div class="tb-group">
+            <button class="tb-btn" id="tb-bold">B</button>
+            <button class="tb-btn" id="tb-italic" style="font-style: italic; font-family: serif;">I</button>
+            <button class="tb-btn" id="tb-underline" style="text-decoration: underline;">U</button>
+          </div>
+          <div class="tb-group">
+            <input type="color" id="tb-color-input" value="#333333" title="글씨 색상">
+          </div>
+          <div class="tb-group">
+            <button class="tb-btn" id="tb-align-left" title="왼쪽 정렬"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg></button>
+            <button class="tb-btn" id="tb-align-center" title="가운데 정렬"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="10" x2="6" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="18" y1="18" x2="6" y2="18"/></svg></button>
+            <button class="tb-btn" id="tb-align-right" title="오른쪽 정렬"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="21" y1="10" x2="7" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="21" y1="18" x2="7" y2="18"/></svg></button>
+          </div>
+          <div class="tb-group" style="position: relative;">
+            <button class="tb-btn" id="tb-spacing-btn" title="자간 및 줄 간격">↕ A</button>
+            <div class="tb-popover" id="spacing-popover">
+              <div><label>자간 <span id="val-letter-spacing">0</span></label>
+                <input type="range" id="tb-letter-spacing" min="-10" max="50" value="0"></div>
+              <div><label>줄 간격 <span id="val-line-height">1.3</span></label>
+                <input type="range" id="tb-line-height" min="0.5" max="3" step="0.1" value="1.3"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 이미지 레이어용 툴바 -->
+        <div id="tb-image-group" style="display: none; align-items: center; gap: 8px;">
+          <div class="tb-group">
+            <label class="switch">
+              <input type="checkbox" id="img-auto">
+              <span class="slider-toggle"></span>
+            </label>
+            <span style="font-size:12px; font-weight:bold;">자동</span>
+          </div>
+          <div class="tb-group">
+            <label>밝기 <input type="range" id="img-brightness" min="-100" max="100" value="0"></label>
+          </div>
+          <div class="tb-group">
+            <label>대비 <input type="range" id="img-contrast" min="-100" max="100" value="0"></label>
+          </div>
+          <div class="tb-group">
+            <label>색조 <input type="range" id="img-hue" min="-180" max="180" value="0"></label>
+          </div>
+          <div class="tb-group">
+            <label>채도 <input type="range" id="img-saturation" min="-100" max="100" value="0"></label>
+          </div>
+          <div class="tb-group">
+            <button id="img-reset-adjust" class="tb-btn" style="font-size:12px;">재설정</button>
+          </div>
+          <div class="tb-group" style="position:relative;">
+            <button id="img-crop-btn" class="tb-btn" style="font-size:12px;">자르기</button>
+            <div class="tb-popover" id="crop-popover" style="width:200px;">
+              <label>상단 <input type="range" id="crop-top" min="0" max="40" value="0"></label>
+              <label>하단 <input type="range" id="crop-bottom" min="0" max="40" value="0"></label>
+              <label>좌측 <input type="range" id="crop-left" min="0" max="40" value="0"></label>
+              <label>우측 <input type="range" id="crop-right" min="0" max="40" value="0"></label>
+            </div>
+          </div>
+          <div class="tb-group">
+            <button id="img-rotate-left" class="tb-btn" title="반시계 회전">↺</button>
+            <button id="img-rotate-right" class="tb-btn" title="시계 회전">↻</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="canvas-container"><canvas id="preview"></canvas></div>
+    </div>
+
+    <div class="controls">
+      <fieldset>
+        <legend>레이어 (위가 가장 앞)</legend>
+        <ul id="layer-list" class="layer-list"></ul>
+        <div class="layer-actions">
+          <div class="add-layer-wrap">
+            <button type="button" id="add-layer-btn">+ 레이어 추가</button>
+            <div id="add-layer-menu" class="dropdown-menu hidden">
+              <button type="button" id="menu-add-text">📝 텍스트 추가</button>
+              <button type="button" id="menu-add-media">🖼️ 사진 / 🎬 동영상</button>
+            </div>
+          </div>
+          <button type="button" id="delete-layer-btn" class="danger">삭제</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>선택된 레이어 속성</legend>
+        <label>가로 위치 <input type="range" id="x-input" min="0" max="100" value="50" /></label>
+        <label>세로 위치 <input type="range" id="y-input" min="0" max="100" value="50" /></label>
+
+        <div id="text-controls" class="sub-controls">
+          <label>내용 <textarea id="text-input"></textarea></label>
+        </div>
+
+        <div id="image-controls" class="sub-controls">
+          <label>가로 비율 <input type="range" id="scale-x-input" min="0.1" max="3" step="0.01" value="1" /></label>
+          <label>세로 비율 <input type="range" id="scale-y-input" min="0.1" max="3" step="0.01" value="1" /></label>
+          <label>회전 <input type="range" id="rotation-input" min="-180" max="180" step="1" value="0" /></label>
+          <button id="reset-transform-btn" style="width:100%; margin-top:4px;">크기 / 회전 초기화</button>
+        </div>
+
+        <div id="video-controls" class="video-controls" style="display:none;">
+          <div class="time-info"><span id="start-time-text">0.0s</span> ~ <span id="end-time-text">0.0s</span></div>
+          <label>시작 시간 (자르기) <input type="range" id="video-start-input" min="0" max="100" step="0.1" value="0" /></label>
+          <label>끝 시간 (자르기) <input type="range" id="video-end-input" min="0" max="100" step="0.1" value="0" /></label>
+          <div class="play-btn-wrap"><button id="preview-play-btn">▶ 미리보기 재생</button></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>비율</legend>
+        <div class="ratio-scroll-wrap">
+          <button class="scroll-btn left" id="scroll-left">‹</button>
+          <div class="ratio-group" id="ratio-group">
+            <button class="ratio-btn active" data-ratio="1:1"><span class="ratio-name">1:1</span><span class="ratio-desc">인스타 정사각</span></button>
+            <button class="ratio-btn" data-ratio="4:5"><span class="ratio-name">4:5</span><span class="ratio-desc">인스타 세로</span></button>
+            <button class="ratio-btn" data-ratio="9:16"><span class="ratio-name">9:16</span><span class="ratio-desc">릴스·숏츠</span></button>
+            <button class="ratio-btn" data-ratio="16:9"><span class="ratio-name">16:9</span><span class="ratio-desc">유튜브 영상</span></button>
+            <button class="ratio-btn" data-ratio="1.91:1"><span class="ratio-name">1.91:1</span><span class="ratio-desc">인스타 가로</span></button>
+            <button class="ratio-btn" data-ratio="3:4"><span class="ratio-name">3:4</span><span class="ratio-desc">세로 프린트</span></button>
+          </div>
+          <button class="scroll-btn right" id="scroll-right">›</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>저장 / 백업</legend>
+        <div class="download-group" style="margin-bottom: 6px;">
+          <button id="download-png-btn" class="btn-png">PNG 저장</button>
+          <button id="download-webm-btn" class="btn-webm" disabled>WebM 저장</button>
+        </div>
+        <div style="display:flex; gap:6px; margin-bottom:6px;">
+          <button id="export-json-btn" style="flex:1;">JSON 내보내기</button>
+          <button id="import-json-btn" style="flex:1;">JSON 가져오기</button>
+        </div>
+        <input type="file" id="import-json-input" accept=".json,application/json" hidden />
+      </fieldset>
+
+      <fieldset>
+        <legend>템플릿</legend>
+        <input type="text" id="template-name" placeholder="템플릿 이름" />
+        <button id="save-template-btn" style="margin-top:6px; width:100%;">템플릿 저장</button>
+        <ul id="template-list"></ul>
+      </fieldset>
+    </div>
+  </div>
+</main>
+
+<input type="file" id="hidden-media-input" accept="image/png, image/jpeg, video/mp4, video/webm" multiple hidden />
+<div id="drop-overlay"><div class="drop-msg"><span>📸</span>여기에 사진/동영상을 놓으세요 (여러 개 가능)</div></div>
+
+<script src="script.js"></script>
+</body>
+</html>
