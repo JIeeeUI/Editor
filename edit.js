@@ -21,6 +21,7 @@ const DEFAULT_TEXT = {
 const DEFAULT_MEDIA = {
   type: "image", visible: true, src: "", x: 0.5, y: 0.5,
   scaleX: 1, scaleY: 1, rotation: 0, originalRatio: 1,
+  startTime: 0, endTime: 0, duration: 0,
   brightness: 0, contrast: 0, saturation: 0, hue: 0,
   crop: { top: 0, right: 0, bottom: 0, left: 0 }
 };
@@ -28,26 +29,23 @@ const DEFAULT_MEDIA = {
 const $ = (id) => document.getElementById(id);
 const uuid = () => crypto.randomUUID ? crypto.randomUUID() : "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
 const newTextLayer = (extra = {}) => ({ ...DEFAULT_TEXT, id: uuid(), ...extra });
-const isMedia = (L) => L.type === "image";
+const isMedia = (L) => L.type === "image" || L.type === "video";
 
 const firstLayer = newTextLayer();
 const state = { ratio: "1:1", layers: [firstLayer], selectedLayerId: firstLayer.id };
 
-const mediaCache = new Map();
+const mediaCache = new Map();           // src -> HTMLImageElement | HTMLVideoElement
 const measureCtx = document.createElement("canvas").getContext("2d");
 let renderQueued = false;
 let draggedLayerId = null;
-let drag = null;
-
-let historyStack = [];
-let historyIndex = -1;
-let isRestoringHistory = false;
+let isPlaying = false, animationFrameId = null;
+let drag = null;                        // 캔버스 드래그 상태 { mode, ... }
 
 const getSelectedLayer = () => state.layers.find((l) => l.id === state.selectedLayerId);
 const getCanvas = () => $("preview");
 
 /* =========================================================
-   2. 유틸 및 히스토리 관리
+   2. 유틸
    ========================================================= */
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -76,120 +74,47 @@ async function ensureFonts() {
       document.fonts.load('700 80px "Noto Sans KR"'),
       ...["Black Han Sans", "Nanum Gothic", "Nanum Myeongjo", "Nanum Pen Script"].map((f) => document.fonts.load(`80px "${f}"`)),
     ]);
-  } catch (_) { }
+  } catch (_) { /* 폰트 로드 실패는 무시 */ }
   await document.fonts.ready;
 }
 
-function togglePopover(popoverEl, btnEl) {
-  if (popoverEl.classList.contains("show")) {
-    popoverEl.classList.remove("show");
-    return;
-  }
-  document.body.appendChild(popoverEl);
-  popoverEl.classList.add("show");
-
-  const rect = btnEl.getBoundingClientRect();
-  popoverEl.style.top = (rect.bottom + 8) + "px";
-  
-  const popoverWidth = popoverEl.offsetWidth;
-  let leftPos = rect.left + (rect.width / 2) - (popoverWidth / 2);
-  
-  if (leftPos + popoverWidth > window.innerWidth - 10) leftPos = window.innerWidth - popoverWidth - 10;
-  if (leftPos < 10) leftPos = 10;
-  popoverEl.style.left = leftPos + "px";
-}
-
-function saveHistoryState() {
-  if (isRestoringHistory) return;
-
-  if (historyIndex < historyStack.length - 1) {
-    historyStack = historyStack.slice(0, historyIndex + 1);
-  }
-  
-  const snapshot = JSON.stringify({
-    ratio: state.ratio,
-    layers: state.layers,
-    selectedLayerId: state.selectedLayerId
-  });
-  
-  if (historyStack.length > 0 && historyStack[historyIndex] === snapshot) return;
-
-  historyStack.push(snapshot);
-  
-  if (historyStack.length > 50) {
-    historyStack.shift();
-  } else {
-    historyIndex++;
-  }
-  updateUndoRedoButtons();
-}
-
-async function applyHistory(index) {
-  if (index < 0 || index >= historyStack.length) return;
-  isRestoringHistory = true;
-  
-  const data = JSON.parse(historyStack[index]);
-  
-  for (const L of data.layers) {
-    if (isMedia(L) && L.src && !mediaCache.has(L.src)) {
-      try { mediaCache.set(L.src, await loadMediaElement(L.src)); } catch {}
-    }
-  }
-  
-  state.ratio = data.ratio;
-  state.layers = data.layers;
-  state.selectedLayerId = data.selectedLayerId;
-  historyIndex = index;
-  
-  await syncControls();
-  renderLayerList();
-  await drawPreview();
-  updateUndoRedoButtons();
-  
-  isRestoringHistory = false;
-}
-
-function undo() {
-  if (historyIndex > 0) applyHistory(historyIndex - 1);
-}
-
-function redo() {
-  if (historyIndex < historyStack.length - 1) applyHistory(historyIndex + 1);
-}
-
-function updateUndoRedoButtons() {
-  const undoBtn = $("undo-btn");
-  const redoBtn = $("redo-btn");
-  if (undoBtn) undoBtn.disabled = historyIndex <= 0;
-  if (redoBtn) redoBtn.disabled = historyIndex >= historyStack.length - 1;
-}
-
 /* =========================================================
-   3. 미디어 로딩 (이미지만)
+   3. 미디어 로딩
    ========================================================= */
-function loadMediaElement(src) {
+function loadMediaElement(src, type) {
   return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("이미지를 열 수 없습니다."));
-    img.src = src;
+    if (type === "video") {
+      const v = document.createElement("video");
+      v.crossOrigin = "anonymous"; v.muted = true; v.playsInline = true;
+      v.onloadedmetadata = () => resolve(v);
+      v.onerror = () => reject(new Error("동영상을 열 수 없습니다."));
+      v.src = src;
+    } else {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("이미지를 열 수 없습니다."));
+      img.src = src;
+    }
   });
 }
 
 async function addMediaLayer(file, isBatch = false) {
-  if (!file.type.startsWith("image/")) return false;
+  const isVideo = file.type.startsWith("video/");
+  const isImage = file.type === "image/png" || file.type === "image/jpeg";
+  if (!isVideo && !isImage) return false;
 
   try {
     const src = URL.createObjectURL(file);
-    const el = await loadMediaElement(src);
+    const el = await loadMediaElement(src, isVideo ? "video" : "image");
     mediaCache.set(src, el);
 
-    const originalRatio = el.height / el.width;
+    const originalRatio = isVideo ? el.videoHeight / el.videoWidth : el.height / el.width;
+    const duration = isVideo ? el.duration : 0;
     const jitter = () => (isBatch ? (Math.random() - 0.5) * 0.15 : 0);
 
     const layer = {
-      ...DEFAULT_MEDIA, id: uuid(), type: "image",
-      src, originalRatio,
+      ...DEFAULT_MEDIA, id: uuid(), type: isVideo ? "video" : "image",
+      src, originalRatio, endTime: duration, duration,
       x: 0.5 + jitter(), y: 0.5 + jitter(),
     };
     state.layers.push(layer);
@@ -207,8 +132,8 @@ async function handleMultipleFiles(files) {
   let ok = 0;
   for (const f of files) if (await addMediaLayer(f, isBatch)) ok++;
 
-  if (ok) { refreshUI(); saveHistoryState(); toast(`${ok}개의 사진이 추가되었습니다.`); }
-  else toast("지원하지 않는 이미지 형식입니다.");
+  if (ok) { refreshUI(); toast(`${ok}개의 파일이 추가되었습니다.`); }
+  else toast("지원하지 않는 파일 형식입니다.");
 }
 
 /* =========================================================
@@ -255,15 +180,14 @@ function getHandles(L, W, H) {
     const t = layoutText(measureCtx, L, W);
     box = { left: -t.width / 2, top: -t.height / 2, w: t.width, h: t.height };
   } else if (isMedia(L)) {
-    let w = W;
+    const w = W;
     let h = W * L.originalRatio;
     
     if (L.crop) {
       const cw = 1 - L.crop.left - L.crop.right;
       const ch = 1 - L.crop.top - L.crop.bottom;
       if (cw > 0.01 && ch > 0.01) {
-        w = W * cw;
-        h = W * L.originalRatio * ch;
+        h = w * L.originalRatio * (ch / cw);
       }
     }
     box = { left: -w / 2, top: -h / 2, w, h };
@@ -367,7 +291,7 @@ function renderCard(ctx, W, H) {
     if (!L.visible) continue;
 
     const media = isMedia(L) ? mediaCache.get(L.src) : null;
-    const drawable = L.type === "text" || media;
+    const drawable = L.type === "text" || (media && !(L.type === "video" && media.readyState < 2));
 
     if (drawable) {
       ctx.save();
@@ -383,7 +307,7 @@ function renderCard(ctx, W, H) {
         const s = 1 + (L.saturation || 0) / 100;
         ctx.filter = `brightness(${b}) contrast(${c}) saturate(${s}) hue-rotate(${L.hue || 0}deg)`;
 
-        let dw = W;
+        const dw = W;
         let dh = W * L.originalRatio;
         
         let sx = 0, sy = 0, sw = media.width, sh = media.height;
@@ -395,10 +319,7 @@ function renderCard(ctx, W, H) {
             sy = media.height * L.crop.top;
             sw = media.width * cw;
             sh = media.height * ch;
-            
-            // ★ 수정된 부분: 이미지가 강제로 늘어나지 않고, 자른 만큼 크기가 줄어들도록 변경
-            dw = W * cw;
-            dh = W * L.originalRatio * ch;
+            dh = dw * L.originalRatio * (ch / cw);
           }
         }
         ctx.drawImage(media, sx, sy, sw, sh, -dw / 2, -dh / 2, dw, dh);
@@ -425,8 +346,44 @@ function requestRender() {
 }
 
 /* =========================================================
-   6. 다운로드 (PNG만)
+   6. 동영상 재생 / 녹화
    ========================================================= */
+const videoLayers = () => state.layers.filter((l) => l.type === "video" && l.visible);
+const getVideo = (L) => mediaCache.get(L.src);
+
+function startPlayback() {
+  if (isPlaying) return;
+  isPlaying = true;
+  $("preview-play-btn").textContent = "⏸ 정지";
+  $("floating-toolbar").classList.remove("show");
+
+  for (const L of videoLayers()) {
+    const v = getVideo(L);
+    if (v) { v.currentTime = L.startTime; v.play(); }
+  }
+  const loop = () => {
+    if (!isPlaying) return;
+    for (const L of videoLayers()) {
+      const v = getVideo(L);
+      if (v && (v.currentTime >= L.endTime || v.currentTime < L.startTime)) v.currentTime = L.startTime;
+    }
+    renderCard(getCanvas().getContext("2d"), ...RATIOS[state.ratio]);
+    animationFrameId = requestAnimationFrame(loop);
+  };
+  loop();
+}
+
+function stopPlayback() {
+  isPlaying = false;
+  cancelAnimationFrame(animationFrameId);
+  $("preview-play-btn").textContent = "▶ 미리보기 재생";
+  for (const L of state.layers.filter((l) => l.type === "video")) {
+    const v = getVideo(L);
+    if (v) { v.pause(); v.currentTime = L.startTime; }
+  }
+  requestRender();
+}
+
 async function handleDownloadPng() {
   const [W, H] = RATIOS[state.ratio];
   const c = document.createElement("canvas");
@@ -441,6 +398,48 @@ async function handleDownloadPng() {
   c.toBlob((blob) => downloadBlob(blob, `card-${state.ratio.replace(/[:.]/g, "-")}-${Date.now()}.png`), "image/png");
 }
 
+async function handleDownloadWebm() {
+  const vids = videoLayers();
+  if (!vids.length) return toast("동영상 레이어가 없습니다.");
+
+  stopPlayback();
+  toast("동영상을 녹화합니다...");
+  const prev = state.selectedLayerId;
+  state.selectedLayerId = null;
+
+  const [W, H] = RATIOS[state.ratio];
+  const canvas = getCanvas();
+  const ctx = canvas.getContext("2d");
+
+  vids.forEach((L) => { const v = getVideo(L); if (v) v.currentTime = L.startTime; });
+  await new Promise((r) => setTimeout(r, 100));
+  renderCard(ctx, W, H);
+
+  const recorder = new MediaRecorder(canvas.captureStream(30), { mimeType: "video/webm" });
+  const chunks = [];
+  recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  recorder.onstop = () => {
+    downloadBlob(new Blob(chunks, { type: "video/webm" }), `card-video-${Date.now()}.webm`);
+    toast("동영상 저장 완료!");
+    state.selectedLayerId = prev;
+    requestRender();
+  };
+
+  const maxDuration = Math.max(...vids.map((L) => L.endTime - L.startTime));
+  vids.forEach((L) => { const v = getVideo(L); if (v) { v.currentTime = L.startTime; v.play(); } });
+
+  recorder.start();
+  const t0 = performance.now();
+  const tick = () => {
+    renderCard(ctx, W, H);
+    const allDone = vids.every((L) => { const v = getVideo(L); return !v || v.currentTime >= L.endTime; });
+    if ((performance.now() - t0) / 1000 < maxDuration && !allDone) return requestAnimationFrame(tick);
+    recorder.stop();
+    vids.forEach((L) => getVideo(L)?.pause());
+  };
+  tick();
+}
+
 /* =========================================================
    7. 레이어 목록 / 컨트롤 동기화
    ========================================================= */
@@ -448,7 +447,7 @@ function refreshUI() { syncControls(); renderLayerList(); requestRender(); }
 
 function layerLabel(L) {
   if (L.type === "text") return L.text.trim().substring(0, 12) || "(빈 텍스트)";
-  return "이미지";
+  return L.type === "video" ? "동영상" : "이미지";
 }
 
 function createLayerItem(L) {
@@ -461,17 +460,12 @@ function createLayerItem(L) {
   const vis = document.createElement("span");
   vis.className = "layer-vis";
   vis.textContent = L.visible ? "👁" : "🚫";
-  vis.onclick = (e) => { 
-    e.stopPropagation(); 
-    L.visible = !L.visible; 
-    renderLayerList(); 
-    requestRender(); 
-    saveHistoryState();
-  };
+  vis.onclick = (e) => { e.stopPropagation(); L.visible = !L.visible; renderLayerList(); requestRender(); };
 
   const thumb = document.createElement("div");
   thumb.className = "layer-thumb";
   if (L.type === "text") { thumb.textContent = "T"; thumb.style.cssText = `font-weight:bold;color:${L.color}`; }
+  else if (L.type === "video") { thumb.textContent = "🎬"; thumb.style.fontSize = "14px"; }
   else { const img = document.createElement("img"); img.src = L.src; thumb.appendChild(img); }
 
   const name = document.createElement("span");
@@ -505,9 +499,7 @@ function createLayerItem(L) {
     const to = state.layers.findIndex((l) => l.id === L.id);
     if (from < 0 || to < 0) return;
     state.layers.splice(to, 0, state.layers.splice(from, 1)[0]);
-    renderLayerList(); 
-    requestRender();
-    saveHistoryState();
+    renderLayerList(); requestRender();
   };
   return li;
 }
@@ -536,6 +528,7 @@ function syncControls() {
 
   $("text-controls").style.display = isText ? "block" : "none";
   $("image-controls").style.display = isMediaType ? "block" : "none";
+  $("video-controls").style.display = L.type === "video" ? "block" : "none";
 
   if (isText) {
     $("text-input").value = L.text;
@@ -567,7 +560,16 @@ function syncControls() {
     $("scale-x-input").value = L.scaleX;
     $("scale-y-input").value = L.scaleY;
     $("rotation-input").value = Math.round(L.rotation * 180 / Math.PI);
+    
+    if (L.type === "video") {
+      $("video-start-input").max = $("video-end-input").max = L.duration;
+      $("video-start-input").value = L.startTime;
+      $("video-end-input").value = L.endTime;
+      $("start-time-text").textContent = L.startTime.toFixed(1) + "s";
+      $("end-time-text").textContent = L.endTime.toFixed(1) + "s";
+    }
   }
+  $("download-webm-btn").disabled = !state.layers.some((l) => l.type === "video");
 }
 
 /* =========================================================
@@ -599,7 +601,7 @@ async function applyDoc(doc) {
     });
     for (const L of state.layers) {
       if (isMedia(L) && L.src && !mediaCache.has(L.src)) {
-        try { mediaCache.set(L.src, await loadMediaElement(L.src)); } catch { }
+        try { mediaCache.set(L.src, await loadMediaElement(L.src, L.type)); } catch { }
       }
     }
   } else {
@@ -607,7 +609,6 @@ async function applyDoc(doc) {
   }
   state.selectedLayerId = state.layers[state.layers.length - 1].id;
   syncControls(); renderLayerList(); await drawPreview();
-  saveHistoryState();
 }
 
 function renderTemplateList() {
@@ -678,7 +679,7 @@ function importJson(file) {
 }
 
 /* =========================================================
-   9. 캔버스 상호작용
+   9. 캔버스 상호작용 (선택 / 이동 / 크기 / 회전)
    ========================================================= */
 function getCanvasCoords(e) {
   const canvas = getCanvas();
@@ -712,6 +713,7 @@ function hitTestLayer(x, y) {
 const CURSORS = { tl: "nwse-resize", br: "nwse-resize", tr: "nesw-resize", bl: "nesw-resize", tc: "ns-resize", bc: "ns-resize", ml: "ew-resize", mr: "ew-resize" };
 
 function onCanvasMouseDown(e) {
+  if (isPlaying) return;
   const { x, y } = getCanvasCoords(e);
   const L = getSelectedLayer();
 
@@ -774,7 +776,7 @@ function onWindowMouseMove(e) {
 }
 
 function onCanvasHover(e) {
-  if (drag) return;
+  if (drag || isPlaying) return;
   const canvas = getCanvas();
   const { x, y } = getCanvasCoords(e);
   const hit = hitTestHandle(x, y);
@@ -787,11 +789,7 @@ function initCanvasDrag() {
   canvas.addEventListener("mousedown", onCanvasMouseDown);
   canvas.addEventListener("mousemove", onCanvasHover);
   window.addEventListener("mousemove", onWindowMouseMove);
-  window.addEventListener("mouseup", () => { 
-    if (drag) saveHistoryState();
-    drag = null; 
-    canvas.style.cursor = "default"; 
-  });
+  window.addEventListener("mouseup", () => { drag = null; canvas.style.cursor = "default"; });
 }
 
 /* =========================================================
@@ -812,25 +810,21 @@ function editMedia(fn, { sync = false } = {}) {
 }
 
 function bindToolbarEvents() {
-  $("tb-font-family").onchange = (e) => { editText((L) => (L.fontFamily = e.target.value)); saveHistoryState(); };
-  $("tb-size-minus").onclick = () => { editText((L) => (L.fontSize = Math.max(10, L.fontSize - 5))); saveHistoryState(); };
-  $("tb-size-plus").onclick = () => { editText((L) => (L.fontSize = Math.min(300, L.fontSize + 5))); saveHistoryState(); };
-  $("tb-size-input").onchange = (e) => { editText((L) => (L.fontSize = Number(e.target.value))); saveHistoryState(); };
+  $("tb-font-family").onchange = (e) => editText((L) => (L.fontFamily = e.target.value));
+  $("tb-size-minus").onclick = () => editText((L) => (L.fontSize = Math.max(10, L.fontSize - 5)));
+  $("tb-size-plus").onclick = () => editText((L) => (L.fontSize = Math.min(300, L.fontSize + 5)));
+  $("tb-size-input").onchange = (e) => editText((L) => (L.fontSize = Number(e.target.value)));
 
-  const toggle = (key, on, off) => { editText((L) => (L[key] = L[key] === on ? off : on)); saveHistoryState(); };
+  const toggle = (key, on, off) => editText((L) => (L[key] = L[key] === on ? off : on));
   $("tb-bold").onclick = () => toggle("fontWeight", "bold", "normal");
   $("tb-italic").onclick = () => toggle("fontStyle", "italic", "normal");
   $("tb-underline").onclick = () => toggle("textDecoration", "underline", "none");
 
   $("tb-color-input").oninput = (e) => editText((L) => (L.color = e.target.value));
-  $("tb-color-input").onchange = () => saveHistoryState();
-  
-  ["left", "center", "right"].forEach((a) => {
-    $("tb-align-" + a).onclick = () => { editText((L) => (L.align = a)); saveHistoryState(); };
-  });
+  ["left", "center", "right"].forEach((a) => ($("tb-align-" + a).onclick = () => editText((L) => (L.align = a))));
 
   const popover = $("spacing-popover");
-  $("tb-spacing-btn").onclick = (e) => { e.stopPropagation(); togglePopover(popover, e.currentTarget); };
+  $("tb-spacing-btn").onclick = (e) => { e.stopPropagation(); popover.classList.toggle("show"); };
   
   document.addEventListener("click", () => {
     popover.classList.remove("show");
@@ -840,9 +834,7 @@ function bindToolbarEvents() {
   popover.onclick = (e) => e.stopPropagation();
 
   $("tb-letter-spacing").oninput = (e) => editText((L) => (L.letterSpacing = Number(e.target.value)));
-  $("tb-letter-spacing").onchange = () => saveHistoryState();
   $("tb-line-height").oninput = (e) => editText((L) => (L.lineHeight = Number(e.target.value)));
-  $("tb-line-height").onchange = () => saveHistoryState();
 }
 
 function bindImageToolbarEvents() {
@@ -855,13 +847,9 @@ function bindImageToolbarEvents() {
   };
 
   $("img-brightness").oninput = (e) => { const L = getMedia(); if (L) { L.brightness = Number(e.target.value); syncAndRender(); } };
-  $("img-brightness").onchange = () => saveHistoryState();
   $("img-contrast").oninput = (e) => { const L = getMedia(); if (L) { L.contrast = Number(e.target.value); syncAndRender(); } };
-  $("img-contrast").onchange = () => saveHistoryState();
   $("img-saturation").oninput = (e) => { const L = getMedia(); if (L) { L.saturation = Number(e.target.value); syncAndRender(); } };
-  $("img-saturation").onchange = () => saveHistoryState();
   $("img-hue").oninput = (e) => { const L = getMedia(); if (L) { L.hue = Number(e.target.value); syncAndRender(); } };
-  $("img-hue").onchange = () => saveHistoryState();
 
   $("img-auto").onchange = (e) => {
     const L = getMedia(); if (!L) return;
@@ -878,15 +866,21 @@ function bindImageToolbarEvents() {
     }
     syncControls();
     requestRender();
-    saveHistoryState();
   };
 
-  $("img-rotate-left").onclick = () => { const L = getMedia(); if (L) { L.rotation -= Math.PI/2; requestRender(); saveHistoryState(); } };
-  $("img-rotate-right").onclick = () => { const L = getMedia(); if (L) { L.rotation += Math.PI/2; requestRender(); saveHistoryState(); } };
+  $("img-reset-adjust").onclick = () => {
+    const L = getMedia(); if (!L) return;
+    L.brightness = 0; L.contrast = 0; L.saturation = 0; L.hue = 0;
+    $("img-auto").checked = false;
+    syncControls(); requestRender();
+  };
+
+  $("img-rotate-left").onclick = () => { const L = getMedia(); if (L) { L.rotation -= Math.PI/2; requestRender(); } };
+  $("img-rotate-right").onclick = () => { const L = getMedia(); if (L) { L.rotation += Math.PI/2; requestRender(); } };
 
   const cropBtn = $("img-crop-btn");
   const cropPopover = $("crop-popover");
-  cropBtn.onclick = (e) => { e.stopPropagation(); togglePopover(cropPopover, e.currentTarget); };
+  cropBtn.onclick = (e) => { e.stopPropagation(); cropPopover.classList.toggle("show"); };
   cropPopover.onclick = (e) => e.stopPropagation();
 
   const onCropChange = () => {
@@ -898,13 +892,9 @@ function bindImageToolbarEvents() {
     requestRender();
   };
   $("crop-top").oninput = onCropChange;
-  $("crop-top").onchange = () => saveHistoryState();
   $("crop-bottom").oninput = onCropChange;
-  $("crop-bottom").onchange = () => saveHistoryState();
   $("crop-left").oninput = onCropChange;
-  $("crop-left").onchange = () => saveHistoryState();
   $("crop-right").oninput = onCropChange;
-  $("crop-right").onchange = () => saveHistoryState();
 }
 
 function bindLayerEvents() {
@@ -920,7 +910,6 @@ function bindLayerEvents() {
     state.selectedLayerId = layer.id;
     refreshUI();
     menu.classList.add("hidden");
-    saveHistoryState();
   };
   $("menu-add-media").onclick = () => { $("hidden-media-input").click(); menu.classList.add("hidden"); };
   $("hidden-media-input").onchange = async (e) => {
@@ -933,7 +922,6 @@ function bindLayerEvents() {
     state.layers = state.layers.filter((l) => l.id !== state.selectedLayerId);
     state.selectedLayerId = state.layers[state.layers.length - 1].id;
     refreshUI();
-    saveHistoryState();
   };
 }
 
@@ -943,42 +931,44 @@ function bindPropertyEvents() {
     if (L) { L[key] = Number(e.target.value) / 100; requestRender(); }
   };
   $("x-input").oninput = setPos("x");
-  $("x-input").onchange = () => saveHistoryState();
   $("y-input").oninput = setPos("y");
-  $("y-input").onchange = () => saveHistoryState();
 
   $("text-input").oninput = (e) => {
     const L = getSelectedLayer();
     if (L?.type === "text") { L.text = e.target.value; renderLayerList(); requestRender(); }
   };
-  $("text-input").onchange = () => saveHistoryState();
 
   $("scale-x-input").oninput = (e) => editMedia((L) => (L.scaleX = Number(e.target.value)));
-  $("scale-x-input").onchange = () => saveHistoryState();
   $("scale-y-input").oninput = (e) => editMedia((L) => (L.scaleY = Number(e.target.value)));
-  $("scale-y-input").onchange = () => saveHistoryState();
   $("rotation-input").oninput = (e) => editMedia((L) => (L.rotation = Number(e.target.value) * Math.PI / 180));
-  $("rotation-input").onchange = () => saveHistoryState();
-  
-  $("reset-transform-btn").onclick = () => {
-    editMedia((L) => { L.scaleX = L.scaleY = 1; L.rotation = 0; }, { sync: true });
-    saveHistoryState();
-  };
+  $("reset-transform-btn").onclick = () => editMedia((L) => { L.scaleX = L.scaleY = 1; L.rotation = 0; }, { sync: true });
 
-  $("undo-btn").onclick = undo;
-  $("redo-btn").onclick = redo;
+  $("video-start-input").oninput = (e) => {
+    const L = getSelectedLayer();
+    if (L?.type !== "video") return;
+    L.startTime = Math.min(Number(e.target.value), L.endTime - 0.1);
+    $("start-time-text").textContent = L.startTime.toFixed(1) + "s";
+    const v = getVideo(L);
+    if (v && !isPlaying) v.currentTime = L.startTime;
+    requestRender();
+  };
+  $("video-end-input").oninput = (e) => {
+    const L = getSelectedLayer();
+    if (L?.type !== "video") return;
+    L.endTime = Math.max(Number(e.target.value), L.startTime + 0.1);
+    $("end-time-text").textContent = L.endTime.toFixed(1) + "s";
+    requestRender();
+  };
+  $("preview-play-btn").onclick = () => (isPlaying ? stopPlayback() : startPlayback());
 }
 
 function bindOutputEvents() {
   document.querySelectorAll(".ratio-btn").forEach((btn) => {
-    btn.onclick = () => { 
-      state.ratio = btn.dataset.ratio; 
-      syncControls(); 
-      requestRender(); 
-      saveHistoryState();
-    };
+    btn.onclick = () => { state.ratio = btn.dataset.ratio; syncControls(); requestRender(); };
   });
   $("download-png-btn").onclick = handleDownloadPng;
+  $("download-webm-btn").onclick = handleDownloadWebm;
+
   $("save-template-btn").onclick = saveCurrentTemplate;
   $("export-json-btn").onclick = exportJson;
   
@@ -1023,6 +1013,7 @@ function initRatioScroll() {
   $("scroll-right").onclick = () => slider.scrollBy({ left: 150, behavior: "smooth" });
 }
 
+/* ★ 플로팅 툴바 드래그 스크롤 이벤트 */
 function initToolbarDragScroll() {
   const toolbar = $("floating-toolbar");
   let isDown = false;
@@ -1031,11 +1022,11 @@ function initToolbarDragScroll() {
   let dragged = false;
 
   toolbar.addEventListener("mousedown", (e) => {
-    dragged = false;
-
+    // 입력창이나 셀렉트 박스를 클릭할 때는 드래그 스크롤 방지
     if (e.target.closest("input, select, button")) return;
 
     isDown = true;
+    dragged = false;
     startX = e.pageX - toolbar.offsetLeft;
     scrollLeft = toolbar.scrollLeft;
   });
@@ -1052,14 +1043,16 @@ function initToolbarDragScroll() {
     if (!isDown) return;
     e.preventDefault();
     const x = e.pageX - toolbar.offsetLeft;
-    const walk = (x - startX) * 1.5;
+    const walk = (x - startX) * 1.5; // 드래그 감도 조절 (1.5배)
     
+    // 일정 거리(5px) 이상 움직이면 드래그로 간주
     if (Math.abs(walk) > 5) {
       dragged = true;
     }
     toolbar.scrollLeft = scrollLeft - walk;
   });
 
+  // 드래그 중일 때는 클릭 이벤트(버튼 눌림 등)가 발생하지 않도록 방지
   toolbar.addEventListener("click", (e) => {
     if (dragged) {
       e.preventDefault();
@@ -1090,22 +1083,6 @@ function initFileDrop() {
   });
 }
 
-function initKeyboardShortcuts() {
-  window.addEventListener("keydown", (e) => {
-    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-    const modifier = isMac ? e.metaKey : e.ctrlKey;
-
-    if (modifier && e.key.toLowerCase() === 'z') {
-      e.preventDefault();
-      if (e.shiftKey) redo();
-      else undo();
-    } else if (modifier && e.key.toLowerCase() === 'y') {
-      e.preventDefault();
-      redo();
-    }
-  });
-}
-
 /* =========================================================
    11. 초기화
    ========================================================= */
@@ -1119,13 +1096,10 @@ function initKeyboardShortcuts() {
   initToolbarDragScroll(); 
   initFileDrop();
   initCanvasDrag();
-  initKeyboardShortcuts();
 
   await ensureFonts();
   renderTemplateList();
   syncControls();
   renderLayerList();
   await drawPreview();
-  
-  saveHistoryState();
 })();

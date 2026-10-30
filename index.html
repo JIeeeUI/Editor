@@ -12,7 +12,7 @@
 <body>
 <header>
   <h1>카드 스튜디오</h1>
-  <p class="hint">화면에 사진을 끌어다 놓거나, 상단에서 편집하세요.</p>
+  <p class="hint">화면에 사진/동영상을 끌어다 놓거나, 상단에서 편집하세요.</p>
 </header>
 
 <main>
@@ -82,6 +82,9 @@
           <div class="tb-group">
             <label>채도 <input type="range" id="img-saturation" min="-100" max="100" value="0"></label>
           </div>
+          <div class="tb-group">
+            <button id="img-reset-adjust" class="tb-btn" style="font-size:12px;">재설정</button>
+          </div>
           <div class="tb-group" style="position:relative;">
             <button id="img-crop-btn" class="tb-btn" style="font-size:12px;">자르기</button>
             <div class="tb-popover" id="crop-popover" style="width:200px;">
@@ -102,12 +105,6 @@
     </div>
 
     <div class="controls">
-      <!-- ★ 항상 보이는 실행 취소 / 다시 실행 버튼 -->
-      <div style="display:flex; gap:6px; margin-bottom: 2px;">
-        <button id="undo-btn" style="flex:1; padding: 8px; font-weight: bold; font-size: 13px;" title="실행 취소 (Ctrl+Z)">↶ 실행 취소</button>
-        <button id="redo-btn" style="flex:1; padding: 8px; font-weight: bold; font-size: 13px;" title="다시 실행 (Ctrl+Shift+Z)">↷ 다시 실행</button>
-      </div>
-
       <fieldset>
         <legend>레이어 (위가 가장 앞)</legend>
         <ul id="layer-list" class="layer-list"></ul>
@@ -116,7 +113,7 @@
             <button type="button" id="add-layer-btn">+ 레이어 추가</button>
             <div id="add-layer-menu" class="dropdown-menu hidden">
               <button type="button" id="menu-add-text">📝 텍스트 추가</button>
-              <button type="button" id="menu-add-media">🖼️ 사진 추가</button>
+              <button type="button" id="menu-add-media">🖼️ 사진 / 🎬 동영상</button>
             </div>
           </div>
           <button type="button" id="delete-layer-btn" class="danger">삭제</button>
@@ -136,8 +133,14 @@
           <label>가로 비율 <input type="range" id="scale-x-input" min="0.1" max="3" step="0.01" value="1" /></label>
           <label>세로 비율 <input type="range" id="scale-y-input" min="0.1" max="3" step="0.01" value="1" /></label>
           <label>회전 <input type="range" id="rotation-input" min="-180" max="180" step="1" value="0" /></label>
-          
           <button id="reset-transform-btn" style="width:100%; margin-top:4px;">크기 / 회전 초기화</button>
+        </div>
+
+        <div id="video-controls" class="video-controls" style="display:none;">
+          <div class="time-info"><span id="start-time-text">0.0s</span> ~ <span id="end-time-text">0.0s</span></div>
+          <label>시작 시간 (자르기) <input type="range" id="video-start-input" min="0" max="100" step="0.1" value="0" /></label>
+          <label>끝 시간 (자르기) <input type="range" id="video-end-input" min="0" max="100" step="0.1" value="0" /></label>
+          <div class="play-btn-wrap"><button id="preview-play-btn">▶ 미리보기 재생</button></div>
         </div>
       </fieldset>
 
@@ -160,7 +163,8 @@
       <fieldset>
         <legend>저장 / 백업</legend>
         <div class="download-group" style="margin-bottom: 6px;">
-          <button id="download-png-btn" class="btn-png" style="width: 100%;">PNG 저장</button>
+          <button id="download-png-btn" class="btn-png">PNG 저장</button>
+          <button id="download-webm-btn" class="btn-webm" disabled>WebM 저장</button>
         </div>
         <div style="display:flex; gap:6px; margin-bottom:6px;">
           <button id="export-json-btn" style="flex:1;">JSON 내보내기</button>
@@ -179,10 +183,9 @@
   </div>
 </main>
 
-<!-- 이미지 파일만 받도록 수정 -->
-<input type="file" id="hidden-media-input" accept="image/png, image/jpeg" multiple hidden />
-<div id="drop-overlay"><div class="drop-msg"><span>📸</span>여기에 사진을 놓으세요 (여러 개 가능)</div></div>
+<input type="file" id="hidden-media-input" accept="image/png, image/jpeg, video/mp4, video/webm" multiple hidden />
+<div id="drop-overlay"><div class="drop-msg"><span>📸</span>여기에 사진/동영상을 놓으세요 (여러 개 가능)</div></div>
 
-<script src="edit.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
