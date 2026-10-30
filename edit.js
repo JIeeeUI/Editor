@@ -48,7 +48,7 @@ const getSelectedLayer = () => state.layers.find((l) => l.id === state.selectedL
 const getCanvas = () => $("preview");
 
 /* =========================================================
-   2. 유틸
+   2. 유틸 및 히스토리
    ========================================================= */
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -93,6 +93,65 @@ function getCropFraction(L) {
 
 const isAutoAdjust = (L) => ADJUST_KEYS.every((k) => (L[k] || 0) === AUTO_ADJUST[k]);
 
+// ===== Undo / Redo 히스토리 로직 =====
+let undoStack = [];
+let redoStack = [];
+let isHistoryAction = false;
+
+function getSnapshot() {
+  return JSON.stringify({
+    ratio: state.ratio,
+    layers: state.layers,
+    selectedLayerId: state.selectedLayerId
+  });
+}
+
+function pushHistory() {
+  if (isHistoryAction) return;
+  const snap = getSnapshot();
+  if (undoStack.length > 0 && undoStack[undoStack.length - 1] === snap) return;
+  
+  undoStack.push(snap);
+  if (undoStack.length > 50) undoStack.shift(); // 최대 50개
+  redoStack = []; // 새 작업 시 redo 스택 초기화
+  updateHistoryButtons();
+}
+
+function restoreSnapshot(snapStr) {
+  isHistoryAction = true;
+  const snap = JSON.parse(snapStr);
+  state.ratio = snap.ratio;
+  state.layers = snap.layers;
+  state.selectedLayerId = snap.selectedLayerId;
+  
+  document.querySelectorAll(".ratio-btn").forEach(b => b.classList.toggle("active", b.dataset.ratio === state.ratio));
+  refreshUI();
+  isHistoryAction = false;
+}
+
+function undo() {
+  if (undoStack.length <= 1) return;
+  const current = undoStack.pop();
+  redoStack.push(current);
+  restoreSnapshot(undoStack[undoStack.length - 1]);
+  updateHistoryButtons();
+}
+
+function redo() {
+  if (redoStack.length === 0) return;
+  const next = redoStack.pop();
+  undoStack.push(next);
+  restoreSnapshot(next);
+  updateHistoryButtons();
+}
+
+function updateHistoryButtons() {
+  const undoBtn = $("undo-btn");
+  const redoBtn = $("redo-btn");
+  if (undoBtn) undoBtn.disabled = undoStack.length <= 1;
+  if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+}
+
 /* =========================================================
    3. 이미지 로딩
    ========================================================= */
@@ -134,7 +193,7 @@ async function handleMultipleFiles(files) {
   let ok = 0;
   for (const f of files) if (await addMediaLayer(f, isBatch)) ok++;
 
-  if (ok) { refreshUI(); toast(`${ok}개의 파일이 추가되었습니다.`); }
+  if (ok) { pushHistory(); refreshUI(); toast(`${ok}개의 파일이 추가되었습니다.`); }
   else toast("지원하지 않는 파일 형식입니다. (PNG, JPEG만 가능)");
 }
 
@@ -315,7 +374,6 @@ function renderCard(ctx, W, H) {
     ctx.restore();
   }
 
-  // 선택 표시는 항상 맨 위에 그립니다
   const selected = getSelectedLayer();
   if (selected?.visible) drawSelection(ctx, selected, W, H);
 }
@@ -344,7 +402,6 @@ async function handleDownloadPng() {
   c.height = H;
   await document.fonts.ready;
 
-  // 저장본에는 선택 핸들이 나오지 않도록 잠시 선택 해제
   const prev = state.selectedLayerId;
   state.selectedLayerId = null;
   renderCard(c.getContext("2d"), W, H);
@@ -373,7 +430,7 @@ function createLayerItem(L) {
   const vis = document.createElement("span");
   vis.className = "layer-vis";
   vis.textContent = L.visible ? "👁" : "🚫";
-  vis.onclick = (e) => { e.stopPropagation(); L.visible = !L.visible; renderLayerList(); requestRender(); };
+  vis.onclick = (e) => { e.stopPropagation(); pushHistory(); L.visible = !L.visible; renderLayerList(); requestRender(); };
 
   const thumb = document.createElement("div");
   thumb.className = "layer-thumb";
@@ -416,6 +473,7 @@ function createLayerItem(L) {
     const from = state.layers.findIndex((l) => l.id === draggedLayerId);
     const to = state.layers.findIndex((l) => l.id === L.id);
     if (from < 0 || to < 0) return;
+    pushHistory();
     state.layers.splice(to, 0, state.layers.splice(from, 1)[0]);
     renderLayerList();
     requestRender();
@@ -468,6 +526,7 @@ function syncControls() {
     $("scale-y-input").value = L.scaleY;
     $("rotation-input").value = Math.round((L.rotation * 180) / Math.PI);
   }
+  updateHistoryButtons();
 }
 
 /* =========================================================
@@ -479,7 +538,6 @@ function getTemplates() {
 const setTemplates = (list) => localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
 const serializeDoc = () => ({ ratio: state.ratio, layers: state.layers.map((l) => ({ ...l })) });
 
-/* 저장된 레이어에 빠진 필드를 기본값으로 채움 (이전 버전 데이터 호환) */
 function normalizeLayer(l) {
   if (l.type === "text") return { ...DEFAULT_TEXT, ...l, id: uuid() };
   const legacyScale = l.scale || 1;
@@ -533,6 +591,7 @@ function saveCurrentTemplate() {
 async function loadTemplateById(id) {
   const t = getTemplates().find((x) => x.id === id);
   if (!t) return;
+  pushHistory();
   await applyDoc(t.doc);
   toast(`"${t.name}" 불러옴`);
 }
@@ -617,10 +676,12 @@ function onCanvasMouseDown(e) {
 
   const hit = hitTestHandle(x, y);
   if (hit?.rotate) {
+    pushHistory();
     drag = { mode: "rotate", startAngle: Math.atan2(y - hit.handles.cy, x - hit.handles.cx), startRotation: L.rotation };
     return;
   }
   if (hit?.point) {
+    pushHistory();
     const { handles } = hit;
     drag = {
       mode: "resize", handle: hit.point.type,
@@ -635,6 +696,7 @@ function onCanvasMouseDown(e) {
   if (target) {
     state.selectedLayerId = target.id;
     refreshUI();
+    pushHistory();
     drag = { mode: "move", startX: x, startY: y, layerX: target.x, layerY: target.y };
   }
 }
@@ -712,7 +774,6 @@ function closePopovers() {
   document.querySelectorAll(".tb-popover").forEach((p) => p.classList.remove("show"));
 }
 
-/* 팝오버는 .preview-wrap 안에 있고, 버튼 바로 아래에 맞춰 배치합니다 */
 function togglePopover(pop, btn) {
   const willOpen = !pop.classList.contains("show");
   closePopovers();
@@ -732,41 +793,47 @@ function bindPopover(btnId, popId) {
 }
 
 function bindToolbarEvents() {
-  $("tb-font-family").onchange = (e) => editText((L) => (L.fontFamily = e.target.value));
-  $("tb-size-minus").onclick = () => editText((L) => (L.fontSize = Math.max(10, L.fontSize - 5)));
-  $("tb-size-plus").onclick = () => editText((L) => (L.fontSize = Math.min(300, L.fontSize + 5)));
-  $("tb-size-input").onchange = (e) => editText((L) => (L.fontSize = Math.min(300, Math.max(10, Number(e.target.value) || 80))));
+  $("tb-font-family").onchange = (e) => { pushHistory(); editText((L) => (L.fontFamily = e.target.value)); };
+  $("tb-size-minus").onclick = () => { pushHistory(); editText((L) => (L.fontSize = Math.max(10, L.fontSize - 5))); };
+  $("tb-size-plus").onclick = () => { pushHistory(); editText((L) => (L.fontSize = Math.min(300, L.fontSize + 5))); };
+  $("tb-size-input").onchange = (e) => { pushHistory(); editText((L) => (L.fontSize = Math.min(300, Math.max(10, Number(e.target.value) || 80)))); };
 
-  const toggle = (key, on, off) => editText((L) => (L[key] = L[key] === on ? off : on));
+  const toggle = (key, on, off) => { pushHistory(); editText((L) => (L[key] = L[key] === on ? off : on)); };
   $("tb-bold").onclick = () => toggle("fontWeight", "bold", "normal");
   $("tb-italic").onclick = () => toggle("fontStyle", "italic", "normal");
   $("tb-underline").onclick = () => toggle("textDecoration", "underline", "none");
 
   $("tb-color-input").oninput = (e) => editText((L) => (L.color = e.target.value));
-  ["left", "center", "right"].forEach((a) => ($("tb-align-" + a).onclick = () => editText((L) => (L.align = a))));
+  $("tb-color-input").onpointerdown = () => pushHistory();
+
+  ["left", "center", "right"].forEach((a) => ($("tb-align-" + a).onclick = () => { pushHistory(); editText((L) => (L.align = a)); }));
 
   bindPopover("tb-spacing-btn", "spacing-popover");
+  $("tb-letter-spacing").onpointerdown = () => pushHistory();
   $("tb-letter-spacing").oninput = (e) => editText((L) => (L.letterSpacing = Number(e.target.value)));
+  $("tb-line-height").onpointerdown = () => pushHistory();
   $("tb-line-height").oninput = (e) => editText((L) => (L.lineHeight = Number(e.target.value)));
 }
 
 function bindImageToolbarEvents() {
   ADJUST_KEYS.forEach((key) => {
+    $("img-" + key).onpointerdown = () => pushHistory();
     $("img-" + key).oninput = (e) => editMedia((L) => (L[key] = Number(e.target.value)));
   });
 
-  $("img-auto").onchange = (e) => editMedia((L) => {
-    Object.assign(L, e.target.checked ? AUTO_ADJUST : { brightness: 0, contrast: 0, saturation: 0, hue: 0 });
-  });
-  $("img-reset-adjust").onclick = () => editMedia((L) => {
-    Object.assign(L, { brightness: 0, contrast: 0, saturation: 0, hue: 0 });
-  });
+  $("img-auto").onchange = (e) => {
+    pushHistory();
+    editMedia((L) => {
+      Object.assign(L, e.target.checked ? AUTO_ADJUST : { brightness: 0, contrast: 0, saturation: 0, hue: 0 });
+    });
+  };
 
-  $("img-rotate-left").onclick = () => editMedia((L) => (L.rotation -= Math.PI / 2));
-  $("img-rotate-right").onclick = () => editMedia((L) => (L.rotation += Math.PI / 2));
+  $("img-rotate-left").onclick = () => { pushHistory(); editMedia((L) => (L.rotation -= Math.PI / 2)); };
+  $("img-rotate-right").onclick = () => { pushHistory(); editMedia((L) => (L.rotation += Math.PI / 2)); };
 
   bindPopover("img-crop-btn", "crop-popover");
   CROP_SIDES.forEach((side) => {
+    $("crop-" + side).onpointerdown = () => pushHistory();
     $("crop-" + side).oninput = (e) => editMedia((L) => {
       L.crop ??= emptyCrop();
       L.crop[side] = Number(e.target.value) / 100;
@@ -780,6 +847,7 @@ function bindLayerEvents() {
   menu.onclick = (e) => e.stopPropagation();
 
   $("menu-add-text").onclick = () => {
+    pushHistory();
     const y = 0.3 + state.layers.length * 0.05;
     const layer = newTextLayer({ y: y > 0.9 ? 0.5 : y });
     state.layers.push(layer);
@@ -795,6 +863,7 @@ function bindLayerEvents() {
 
   $("delete-layer-btn").onclick = () => {
     if (state.layers.length <= 1) return toast("최소 1개 레이어 필요");
+    pushHistory();
     state.layers = state.layers.filter((l) => l.id !== state.selectedLayerId);
     state.selectedLayerId = state.layers[state.layers.length - 1].id;
     refreshUI();
@@ -806,24 +875,38 @@ function bindPropertyEvents() {
     const L = getSelectedLayer();
     if (L) { L[key] = Number(e.target.value) / 100; requestRender(); }
   };
+  $("x-input").onpointerdown = () => pushHistory();
+  $("y-input").onpointerdown = () => pushHistory();
   $("x-input").oninput = setPos("x");
   $("y-input").oninput = setPos("y");
 
-  // 입력 중 커서가 튀지 않도록 refreshUI 대신 목록/캔버스만 갱신
+  $("text-input").onfocus = () => pushHistory();
   $("text-input").oninput = (e) => {
     const L = getSelectedLayer();
     if (L?.type === "text") { L.text = e.target.value; renderLayerList(); requestRender(); }
   };
 
+  $("scale-x-input").onpointerdown = () => pushHistory();
   $("scale-x-input").oninput = (e) => editMedia((L) => (L.scaleX = Number(e.target.value)));
+  
+  $("scale-y-input").onpointerdown = () => pushHistory();
   $("scale-y-input").oninput = (e) => editMedia((L) => (L.scaleY = Number(e.target.value)));
+  
+  $("rotation-input").onpointerdown = () => pushHistory();
   $("rotation-input").oninput = (e) => editMedia((L) => (L.rotation = (Number(e.target.value) * Math.PI) / 180));
-  $("reset-transform-btn").onclick = () => editMedia((L) => { L.scaleX = L.scaleY = 1; L.rotation = 0; });
+  
+  $("reset-transform-btn").onclick = () => {
+    pushHistory();
+    editMedia((L) => { L.scaleX = L.scaleY = 1; L.rotation = 0; });
+  };
+
+  $("undo-btn").onclick = undo;
+  $("redo-btn").onclick = redo;
 }
 
 function bindOutputEvents() {
   document.querySelectorAll(".ratio-btn").forEach((btn) => {
-    btn.onclick = () => { state.ratio = btn.dataset.ratio; syncControls(); requestRender(); };
+    btn.onclick = () => { pushHistory(); state.ratio = btn.dataset.ratio; syncControls(); requestRender(); };
   });
   $("download-png-btn").onclick = handleDownloadPng;
 
@@ -844,7 +927,6 @@ function bindOutputEvents() {
   };
 }
 
-/* 마우스 드래그로 가로 스크롤 (드래그 직후의 클릭은 무시) */
 function enableDragScroll(el, { speed = 1, ignoreSelector = null } = {}) {
   let isDown = false, dragged = false, startX = 0, startScroll = 0;
 
@@ -879,7 +961,6 @@ function initScrollers() {
   $("scroll-left").onclick = () => ratioGroup.scrollBy({ left: -150, behavior: "smooth" });
   $("scroll-right").onclick = () => ratioGroup.scrollBy({ left: 150, behavior: "smooth" });
 
-  // 툴바는 입력 요소 위에서 시작한 드래그는 스크롤로 취급하지 않음
   enableDragScroll($("floating-toolbar"), { speed: 1.5, ignoreSelector: "input, select, button" });
 }
 
@@ -929,4 +1010,7 @@ function initFileDrop() {
   await ensureFonts();
   renderTemplateList();
   refreshUI();
+  
+  // 초기 상태 스냅샷 저장
+  pushHistory();
 })();
