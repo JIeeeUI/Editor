@@ -20,7 +20,7 @@
     <div class="preview-wrap">
       <div id="floating-toolbar">
         <!-- 텍스트 레이어용 툴바 -->
-        <div id="toolbar-text" style="display: contents;">
+        <div id="toolbar-text" class="toolbar-row">
           <div class="tb-group">
             <select class="tb-select" id="tb-font-family">
               <option value="'Noto Sans KR', sans-serif">Noto Sans</option>
@@ -62,7 +62,7 @@
         </div>
 
         <!-- 이미지 레이어용 툴바 -->
-        <div id="tb-image-group" style="display: none; align-items: center; gap: 8px;">
+        <div id="tb-image-group" class="toolbar-row" style="display: none;">
           <div class="tb-group">
             <label class="switch">
               <input type="checkbox" id="img-auto">
@@ -186,6 +186,6 @@
 <input type="file" id="hidden-media-input" accept="image/png, image/jpeg, video/mp4, video/webm" multiple hidden />
 <div id="drop-overlay"><div class="drop-msg"><span>📸</span>여기에 사진/동영상을 놓으세요 (여러 개 가능)</div></div>
 
-<script src="script.js"></script>
+<script src="edit.js"></script>
 </body>
 </html>
