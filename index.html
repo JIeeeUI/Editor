@@ -69,7 +69,6 @@
           <div class="tb-group"><label>대비 <input type="range" id="img-contrast" min="-100" max="100" value="0" /></label></div>
           <div class="tb-group"><label>색조 <input type="range" id="img-hue" min="-180" max="180" value="0" /></label></div>
           <div class="tb-group"><label>채도 <input type="range" id="img-saturation" min="-100" max="100" value="0" /></label></div>
-          <!-- 재설정 버튼 제거됨 -->
           <div class="tb-group">
             <button type="button" id="img-crop-btn" class="tb-btn tb-btn-sm">자르기</button>
           </div>
@@ -102,6 +101,12 @@
 
     <!-- ===== 컨트롤 패널 ===== -->
     <div class="controls">
+      <!-- ★ 항상 보이는 실행 취소 / 다시 실행 버튼 -->
+      <div class="history-actions">
+        <button type="button" id="undo-btn" title="실행 취소 (Ctrl+Z)">↶ 실행 취소</button>
+        <button type="button" id="redo-btn" title="다시 실행 (Ctrl+Shift+Z)">↷ 다시 실행</button>
+      </div>
+
       <fieldset>
         <legend>레이어 (위가 가장 앞)</legend>
         <ul id="layer-list" class="layer-list"></ul>
@@ -130,12 +135,7 @@
           <label>가로 비율 <input type="range" id="scale-x-input" min="0.1" max="3" step="0.01" value="1" /></label>
           <label>세로 비율 <input type="range" id="scale-y-input" min="0.1" max="3" step="0.01" value="1" /></label>
           <label>회전 <input type="range" id="rotation-input" min="-180" max="180" step="1" value="0" /></label>
-          <!-- 초기화 버튼 옆에 Undo / Redo 배치 -->
-          <div class="btn-row" style="margin-top: 6px;">
-            <button type="button" id="reset-transform-btn" style="flex: 1;">크기 / 회전 초기화</button>
-            <button type="button" id="undo-btn" title="실행 취소" style="flex: 0 0 auto; padding: 6px 12px;">↶</button>
-            <button type="button" id="redo-btn" title="다시 실행" style="flex: 0 0 auto; padding: 6px 12px;">↷</button>
-          </div>
+          <button type="button" id="reset-transform-btn" class="btn-block">크기 / 회전 초기화</button>
         </div>
       </fieldset>
 

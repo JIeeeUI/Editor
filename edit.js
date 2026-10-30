@@ -927,6 +927,37 @@ function bindOutputEvents() {
   };
 }
 
+/* ★ 단축키 바인딩 함수 추가 */
+function bindGlobalShortcuts() {
+  window.addEventListener("keydown", (e) => {
+    const activeTag = document.activeElement?.tagName;
+    const inputType = document.activeElement?.type;
+    
+    // 텍스트 입력 중이거나 폼 요소 조작 중일 때는 단축키 무시 (브라우저 기본 동작 허용)
+    if (activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT") {
+      if (inputType !== "range" && inputType !== "color" && inputType !== "checkbox") {
+        return; 
+      }
+    }
+
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+    const key = e.key.toLowerCase();
+
+    if (cmdOrCtrl && key === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        redo();
+      } else {
+        undo();
+      }
+    } else if (cmdOrCtrl && key === 'y') {
+      e.preventDefault();
+      redo();
+    }
+  });
+}
+
 function enableDragScroll(el, { speed = 1, ignoreSelector = null } = {}) {
   let isDown = false, dragged = false, startX = 0, startScroll = 0;
 
@@ -1002,6 +1033,7 @@ function initFileDrop() {
   bindLayerEvents();
   bindPropertyEvents();
   bindOutputEvents();
+  bindGlobalShortcuts(); // 단축키 초기화
   initScrollers();
   initGlobalClicks();
   initFileDrop();

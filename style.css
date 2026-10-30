@@ -91,6 +91,11 @@ fieldset { flex-shrink: 0; min-width: 0; margin: 0; padding: 10px 12px; backgrou
 legend { padding: 0 4px; font-size: 12px; font-weight: bold; color: var(--muted); }
 .sub-controls { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
 
+/* ★ 항상 보이는 히스토리 액션 버튼 */
+.history-actions { display: flex; gap: 6px; }
+.history-actions button { flex: 1; padding: 8px; font-size: 13px; font-weight: bold; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; }
+.history-actions button:disabled { background: var(--field); color: var(--muted); }
+
 /* ===== 레이어 목록 ===== */
 .layer-list { list-style: none; margin: 0; padding: 4px; max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; background: var(--field); border: 1px solid var(--border); border-radius: 6px; }
 .layer-list li { display: flex; align-items: center; gap: 6px; padding: 5px 6px; font-size: 12px; background: #fff; border: 1px solid transparent; border-radius: 4px; cursor: pointer; user-select: none; }
