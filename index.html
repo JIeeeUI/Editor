@@ -14,7 +14,7 @@
   <h1>카드 스튜디오</h1>
   <p class="hint">화면에 사진/동영상을 끌어다 놓거나, 상단에서 편집하세요.</p>
 </header>
-
+ 
 <main>
   <div class="editor">
     <div class="preview-wrap">
@@ -52,15 +52,9 @@
           </div>
           <div class="tb-group">
             <button class="tb-btn" id="tb-spacing-btn" title="자간 및 줄 간격">↕ A</button>
-            <div class="tb-popover" id="spacing-popover">
-              <div><label>자간 <span id="val-letter-spacing">0</span></label>
-                <input type="range" id="tb-letter-spacing" min="-10" max="50" value="0"></div>
-              <div><label>줄 간격 <span id="val-line-height">1.3</span></label>
-                <input type="range" id="tb-line-height" min="0.5" max="3" step="0.1" value="1.3"></div>
-            </div>
           </div>
         </div>
-
+ 
         <!-- 이미지 레이어용 툴바 -->
         <div id="tb-image-group" class="toolbar-row" style="display: none;">
           <div class="tb-group">
@@ -87,12 +81,6 @@
           </div>
           <div class="tb-group">
             <button id="img-crop-btn" class="tb-btn" style="font-size:12px;">자르기</button>
-            <div class="tb-popover" id="crop-popover" style="width:200px;">
-              <label>상단 <input type="range" id="crop-top" min="0" max="40" value="0"></label>
-              <label>하단 <input type="range" id="crop-bottom" min="0" max="40" value="0"></label>
-              <label>좌측 <input type="range" id="crop-left" min="0" max="40" value="0"></label>
-              <label>우측 <input type="range" id="crop-right" min="0" max="40" value="0"></label>
-            </div>
           </div>
           <div class="tb-group">
             <button id="img-rotate-left" class="tb-btn" title="반시계 회전">↺</button>
@@ -100,21 +88,24 @@
           </div>
         </div>
       </div>
-<div class="tb-popover" id="spacing-popover">
-  <div><label>자간 <span id="val-letter-spacing">0</span></label>
-    <input type="range" id="tb-letter-spacing" min="-10" max="50" value="0"></div>
-  <div><label>줄 간격 <span id="val-line-height">1.3</span></label>
-    <input type="range" id="tb-line-height" min="0.5" max="3" step="0.1" value="1.3"></div>
-</div>
-<div class="tb-popover" id="crop-popover" style="width:200px;">
-  <label>상단 <input type="range" id="crop-top" min="0" max="40" value="0"></label>
-  <label>하단 <input type="range" id="crop-bottom" min="0" max="40" value="0"></label>
-  <label>좌측 <input type="range" id="crop-left" min="0" max="40" value="0"></label>
-  <label>우측 <input type="range" id="crop-right" min="0" max="40" value="0"></label>
-</div>
+ 
+      <!-- 팝업 (툴바 밖에 있어야 잘리지 않습니다) -->
+      <div class="tb-popover" id="spacing-popover">
+        <div><label>자간 <span id="val-letter-spacing">0</span></label>
+          <input type="range" id="tb-letter-spacing" min="-10" max="50" value="0"></div>
+        <div><label>줄 간격 <span id="val-line-height">1.3</span></label>
+          <input type="range" id="tb-line-height" min="0.5" max="3" step="0.1" value="1.3"></div>
+      </div>
+      <div class="tb-popover" id="crop-popover" style="width:200px;">
+        <label>상단 <input type="range" id="crop-top" min="0" max="40" value="0"></label>
+        <label>하단 <input type="range" id="crop-bottom" min="0" max="40" value="0"></label>
+        <label>좌측 <input type="range" id="crop-left" min="0" max="40" value="0"></label>
+        <label>우측 <input type="range" id="crop-right" min="0" max="40" value="0"></label>
+      </div>
+ 
       <div class="canvas-container"><canvas id="preview"></canvas></div>
     </div>
-
+ 
     <div class="controls">
       <fieldset>
         <legend>레이어 (위가 가장 앞)</legend>
@@ -130,23 +121,23 @@
           <button type="button" id="delete-layer-btn" class="danger">삭제</button>
         </div>
       </fieldset>
-
+ 
       <fieldset>
         <legend>선택된 레이어 속성</legend>
         <label>가로 위치 <input type="range" id="x-input" min="0" max="100" value="50" /></label>
         <label>세로 위치 <input type="range" id="y-input" min="0" max="100" value="50" /></label>
-
+ 
         <div id="text-controls" class="sub-controls">
           <label>내용 <textarea id="text-input"></textarea></label>
         </div>
-
+ 
         <div id="image-controls" class="sub-controls">
           <label>가로 비율 <input type="range" id="scale-x-input" min="0.1" max="3" step="0.01" value="1" /></label>
           <label>세로 비율 <input type="range" id="scale-y-input" min="0.1" max="3" step="0.01" value="1" /></label>
           <label>회전 <input type="range" id="rotation-input" min="-180" max="180" step="1" value="0" /></label>
           <button id="reset-transform-btn" style="width:100%; margin-top:4px;">크기 / 회전 초기화</button>
         </div>
-
+ 
         <div id="video-controls" class="video-controls" style="display:none;">
           <div class="time-info"><span id="start-time-text">0.0s</span> ~ <span id="end-time-text">0.0s</span></div>
           <label>시작 시간 (자르기) <input type="range" id="video-start-input" min="0" max="100" step="0.1" value="0" /></label>
@@ -154,7 +145,7 @@
           <div class="play-btn-wrap"><button id="preview-play-btn">▶ 미리보기 재생</button></div>
         </div>
       </fieldset>
-
+ 
       <fieldset>
         <legend>비율</legend>
         <div class="ratio-scroll-wrap">
@@ -170,7 +161,7 @@
           <button class="scroll-btn right" id="scroll-right">›</button>
         </div>
       </fieldset>
-
+ 
       <fieldset>
         <legend>저장 / 백업</legend>
         <div class="download-group" style="margin-bottom: 6px;">
@@ -183,7 +174,7 @@
         </div>
         <input type="file" id="import-json-input" accept=".json,application/json" hidden />
       </fieldset>
-
+ 
       <fieldset>
         <legend>템플릿</legend>
         <input type="text" id="template-name" placeholder="템플릿 이름" />
@@ -193,10 +184,10 @@
     </div>
   </div>
 </main>
-
+ 
 <input type="file" id="hidden-media-input" accept="image/png, image/jpeg, video/mp4, video/webm" multiple hidden />
 <div id="drop-overlay"><div class="drop-msg"><span>📸</span>여기에 사진/동영상을 놓으세요 (여러 개 가능)</div></div>
-
+ 
 <script src="edit.js"></script>
 </body>
 </html>
