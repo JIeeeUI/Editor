@@ -60,7 +60,7 @@ function toast(msg) {
   el.textContent = msg;
   el.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove("show"), 1800);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 3000); // 1800ms -> 3000ms로 증가 (C10)
 }
 
 function downloadBlob(blob, filename) {
@@ -112,8 +112,8 @@ function pushHistory() {
   if (undoStack.length > 0 && undoStack[undoStack.length - 1] === snap) return;
   
   undoStack.push(snap);
-  if (undoStack.length > 50) undoStack.shift(); // 최대 50개
-  redoStack = []; // 새 작업 시 redo 스택 초기화
+  if (undoStack.length > 50) undoStack.shift();
+  redoStack = [];
   updateHistoryButtons();
 }
 
@@ -153,7 +153,7 @@ function updateHistoryButtons() {
 }
 
 /* =========================================================
-   3. 이미지 로딩
+   3. 이미지 로딩 (Data URL 변환 및 리사이징) - C21, C22 해결
    ========================================================= */
 function loadMediaElement(src) {
   return new Promise((resolve, reject) => {
@@ -164,37 +164,97 @@ function loadMediaElement(src) {
   });
 }
 
-async function addMediaLayer(file, isBatch = false) {
-  if (file.type !== "image/png" && file.type !== "image/jpeg") return false;
+// 파일을 Data URL로 변환하고 크기를 줄이는 헬퍼 함수
+function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1600;
+        let { width, height } = img;
+        
+        if (width > maxDim || height > maxDim) {
+          const ratio = Math.min(maxDim / width, maxDim / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // PNG는 투명도 유지를 위해 PNG로, JPEG는 0.85 품질로 저장
+        const isPng = file.type === "image/png";
+        const dataUrl = canvas.toDataURL(isPng ? "image/png" : "image/jpeg", isPng ? undefined : 0.85);
+        resolve({ dataUrl, width, height });
+      };
+      img.onerror = () => reject(new Error("이미지를 열 수 없습니다."));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error("파일을 읽을 수 없습니다."));
+    reader.readAsDataURL(file);
+  });
+}
 
-  const src = URL.createObjectURL(file);
-  try {
-    mediaCache.set(src, await loadMediaElement(src));
-  } catch (err) {
-    URL.revokeObjectURL(src);
-    toast("오류: " + err.message);
-    return false;
+async function addMediaLayer(file, isBatch = false) {
+  if (file.type !== "image/png" && file.type !== "image/jpeg") {
+    return `"${file.name}" 파일은 지원하지 않는 형식입니다. (PNG, JPEG만 가능)`; // C10
   }
 
-  const el = mediaCache.get(src);
-  const jitter = () => (isBatch ? (Math.random() - 0.5) * 0.15 : 0);
-  const layer = newMediaLayer({
-    src, originalRatio: el.height / el.width,
-    x: 0.5 + jitter(), y: 0.5 + jitter(),
-  });
-  state.layers.push(layer);
-  state.selectedLayerId = layer.id;
-  return true;
+  try {
+    const { dataUrl, width, height } = await fileToDataURL(file);
+    const el = await loadMediaElement(dataUrl);
+    mediaCache.set(dataUrl, el);
+
+    const originalRatio = height / width;
+    const [W, H] = RATIOS[state.ratio];
+    const dh = W * originalRatio;
+    
+    // 세로로 긴 이미지가 캔버스를 넘지 않도록 초기 스케일 조정 (C15)
+    let initScale = 1;
+    if (dh > H) initScale = H / dh;
+
+    const jitter = () => (isBatch ? (Math.random() - 0.5) * 0.15 : 0);
+    const layer = newMediaLayer({
+      src: dataUrl, originalRatio,
+      x: 0.5 + jitter(), y: 0.5 + jitter(),
+      scaleX: initScale, scaleY: initScale
+    });
+    
+    state.layers.push(layer);
+    state.selectedLayerId = layer.id;
+    return true;
+  } catch (err) {
+    return `"${file.name}" 파일을 열 수 없습니다. (${err.message})`;
+  }
 }
 
 async function handleMultipleFiles(files) {
   if (!files.length) return;
   const isBatch = files.length > 1;
-  let ok = 0;
-  for (const f of files) if (await addMediaLayer(f, isBatch)) ok++;
+  let okCount = 0;
+  let errors = [];
 
-  if (ok) { pushHistory(); refreshUI(); toast(`${ok}개의 파일이 추가되었습니다.`); }
-  else toast("지원하지 않는 파일 형식입니다. (PNG, JPEG만 가능)");
+  for (const f of files) {
+    const res = await addMediaLayer(f, isBatch);
+    if (res === true) okCount++;
+    else if (typeof res === "string") errors.push(res);
+  }
+
+  if (okCount > 0) {
+    pushHistory();
+    refreshUI();
+  }
+
+  if (errors.length > 0) {
+    // 여러 개 중 실패한 것이 있으면 실패 이유 표시 (C10)
+    toast(errors.join("\n"));
+  } else if (okCount > 0) {
+    toast(`${okCount}개의 파일이 추가되었습니다.`);
+  }
 }
 
 /* =========================================================
@@ -557,7 +617,7 @@ async function applyDoc(doc) {
       state.layers
         .filter((L) => isMedia(L) && L.src && !mediaCache.has(L.src))
         .map(async (L) => {
-          try { mediaCache.set(L.src, await loadMediaElement(L.src)); } catch { /* 불러오기 실패한 이미지는 건너뜀 */ }
+          try { mediaCache.set(L.src, await loadMediaElement(L.src)); } catch { }
         }),
     );
   } else {
@@ -571,9 +631,18 @@ function renderTemplateList() {
   const ul = $("template-list");
   const list = getTemplates();
   if (!list.length) { ul.innerHTML = '<li class="empty">저장된 템플릿이 없습니다.</li>'; return; }
+  
+  // 덮어쓰기, 이름변경, 불러오기, 삭제 버튼 추가 (C19)
   ul.innerHTML = list.map((t) =>
-    `<li data-id="${escapeHtml(t.id)}"><span class="tname">${escapeHtml(t.name)}</span>` +
-    `<button type="button" data-action="load">불러오기</button><button type="button" data-action="delete">삭제</button></li>`
+    `<li data-id="${escapeHtml(t.id)}">
+      <span class="tname">${escapeHtml(t.name)}</span>
+      <div style="display:flex; gap:4px; width:100%; margin-top:4px;">
+        <button type="button" data-action="load">불러오기</button>
+        <button type="button" data-action="overwrite">덮어쓰기</button>
+        <button type="button" data-action="rename">이름변경</button>
+        <button type="button" data-action="delete" class="danger">삭제</button>
+      </div>
+    </li>`
   ).join("");
 }
 
@@ -582,7 +651,7 @@ function saveCurrentTemplate() {
   const list = getTemplates();
   const name = input.value.trim() || `템플릿 ${list.length + 1}`;
   list.push({ id: uuid(), name, doc: serializeDoc(), createdAt: new Date().toISOString() });
-  try { setTemplates(list); } catch { return toast("저장 실패: 용량 부족"); }
+  try { setTemplates(list); } catch { return toast("저장 실패: 용량 부족 (이미지 용량을 줄여보세요)"); }
   input.value = "";
   renderTemplateList();
   toast(`"${name}" 저장됨`);
@@ -594,6 +663,33 @@ async function loadTemplateById(id) {
   pushHistory();
   await applyDoc(t.doc);
   toast(`"${t.name}" 불러옴`);
+}
+
+function overwriteTemplateById(id) {
+  const list = getTemplates();
+  const t = list.find(x => x.id === id);
+  if (!t) return;
+  t.doc = serializeDoc();
+  t.createdAt = new Date().toISOString();
+  try { 
+    setTemplates(list); 
+    toast(`"${t.name}" 덮어쓰기 완료`); 
+  } catch { 
+    toast("저장 실패: 용량 부족"); 
+  }
+}
+
+function renameTemplateById(id) {
+  const list = getTemplates();
+  const t = list.find(x => x.id === id);
+  if (!t) return;
+  const newName = prompt("새로운 템플릿 이름을 입력하세요", t.name);
+  if (newName && newName.trim()) {
+    t.name = newName.trim();
+    setTemplates(list);
+    renderTemplateList();
+    toast("이름이 변경되었습니다.");
+  }
 }
 
 function deleteTemplateById(id) {
@@ -613,19 +709,39 @@ function importJson(file) {
   reader.onload = (e) => {
     try {
       const data = JSON.parse(e.target.result);
-      if (!data || !Array.isArray(data.templates)) throw new Error("잘못된 JSON 형식입니다.");
+      if (!data || data.schemaVersion !== 2 || !Array.isArray(data.templates)) {
+        throw new Error("잘못된 JSON 형식이거나 지원하지 않는 버전입니다.");
+      }
 
       const merged = getTemplates();
+      let addedCount = 0;
+
       for (const t of data.templates) {
         if (!t.id || !t.name || !t.doc || !Array.isArray(t.doc.layers)) {
           throw new Error("필수 항목(템플릿 구조)이 누락되었습니다.");
         }
-        if (!merged.some((x) => x.id === t.id)) merged.push(t);
+        
+        for (const L of t.doc.layers) {
+          if (!L.type || typeof L.x !== "number" || typeof L.y !== "number") {
+            throw new Error("레이어 속성(위치 등)이 누락되었습니다.");
+          }
+          if (L.type === "text" && typeof L.text !== "string") throw new Error("텍스트 데이터 누락");
+          if (L.type === "image" && typeof L.src !== "string") throw new Error("이미지 데이터 누락");
+          if (L.color && !/^#[0-9A-Fa-f]{6}$/.test(L.color)) throw new Error("색상 형식이 올바르지 않습니다.");
+        }
+
+        if (!merged.some((x) => x.id === t.id)) {
+          merged.push(t);
+          addedCount++;
+        }
       }
 
       setTemplates(merged);
       renderTemplateList();
-      toast("JSON을 성공적으로 가져왔습니다.");
+      
+      if (addedCount > 0) toast(`JSON을 성공적으로 가져왔습니다. (추가: ${addedCount}건)`);
+      else toast("새로 추가된 템플릿이 없습니다. (중복된 ID)");
+      
     } catch (err) {
       toast("JSON 가져오기 실패: " + err.message);
     }
@@ -842,20 +958,17 @@ function bindImageToolbarEvents() {
 }
 
 function bindLayerEvents() {
-  const menu = $("add-layer-menu");
-  $("add-layer-btn").onclick = (e) => { e.stopPropagation(); menu.classList.toggle("hidden"); };
-  menu.onclick = (e) => e.stopPropagation();
-
-  $("menu-add-text").onclick = () => {
+  // ★ 첫 화면 노출 버튼들 (C03)
+  $("quick-add-text").onclick = () => {
     pushHistory();
     const y = 0.3 + state.layers.length * 0.05;
     const layer = newTextLayer({ y: y > 0.9 ? 0.5 : y });
     state.layers.push(layer);
     state.selectedLayerId = layer.id;
     refreshUI();
-    menu.classList.add("hidden");
   };
-  $("menu-add-media").onclick = () => { $("hidden-media-input").click(); menu.classList.add("hidden"); };
+  $("quick-add-media").onclick = () => $("hidden-media-input").click();
+  
   $("hidden-media-input").onchange = async (e) => {
     await handleMultipleFiles(Array.from(e.target.files));
     e.target.value = "";
@@ -918,22 +1031,24 @@ function bindOutputEvents() {
     e.target.value = "";
   };
 
+  // ★ 템플릿 액션 분기 (덮어쓰기, 이름변경 추가) - C19
   $("template-list").onclick = (e) => {
     const btn = e.target.closest("button");
     const id = btn?.closest("li")?.dataset.id;
     if (!id) return;
+    
     if (btn.dataset.action === "load") loadTemplateById(id);
+    if (btn.dataset.action === "overwrite") overwriteTemplateById(id);
+    if (btn.dataset.action === "rename") renameTemplateById(id);
     if (btn.dataset.action === "delete" && confirm("삭제할까요?")) deleteTemplateById(id);
   };
 }
 
-/* ★ 단축키 바인딩 함수 추가 */
 function bindGlobalShortcuts() {
   window.addEventListener("keydown", (e) => {
     const activeTag = document.activeElement?.tagName;
     const inputType = document.activeElement?.type;
     
-    // 텍스트 입력 중이거나 폼 요소 조작 중일 때는 단축키 무시 (브라우저 기본 동작 허용)
     if (activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT") {
       if (inputType !== "range" && inputType !== "color" && inputType !== "checkbox") {
         return; 
@@ -946,11 +1061,8 @@ function bindGlobalShortcuts() {
 
     if (cmdOrCtrl && key === 'z') {
       e.preventDefault();
-      if (e.shiftKey) {
-        redo();
-      } else {
-        undo();
-      }
+      if (e.shiftKey) redo();
+      else undo();
     } else if (cmdOrCtrl && key === 'y') {
       e.preventDefault();
       redo();
@@ -998,7 +1110,6 @@ function initScrollers() {
 function initGlobalClicks() {
   document.addEventListener("click", () => {
     closePopovers();
-    $("add-layer-menu").classList.add("hidden");
   });
 }
 
@@ -1033,7 +1144,7 @@ function initFileDrop() {
   bindLayerEvents();
   bindPropertyEvents();
   bindOutputEvents();
-  bindGlobalShortcuts(); // 단축키 초기화
+  bindGlobalShortcuts();
   initScrollers();
   initGlobalClicks();
   initFileDrop();
@@ -1043,6 +1154,5 @@ function initFileDrop() {
   renderTemplateList();
   refreshUI();
   
-  // 초기 상태 스냅샷 저장
   pushHistory();
 })();

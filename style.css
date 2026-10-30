@@ -91,7 +91,11 @@ fieldset { flex-shrink: 0; min-width: 0; margin: 0; padding: 10px 12px; backgrou
 legend { padding: 0 4px; font-size: 12px; font-weight: bold; color: var(--muted); }
 .sub-controls { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
 
-/* ★ 항상 보이는 히스토리 액션 버튼 */
+/* ★ 첫 화면 추가 버튼 (C03) */
+.quick-add-row { display: flex; gap: 6px; margin-bottom: 8px; }
+.quick-add-row button { flex: 1; padding: 8px; font-weight: bold; color: var(--purple); background: var(--purple-bg); border-color: #d0c4ff; }
+.quick-add-row button:hover { background: #e5dbff; }
+
 .history-actions { display: flex; gap: 6px; }
 .history-actions button { flex: 1; padding: 8px; font-size: 13px; font-weight: bold; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; }
 .history-actions button:disabled { background: var(--field); color: var(--muted); }
@@ -110,14 +114,6 @@ legend { padding: 0 4px; font-size: 12px; font-weight: bold; color: var(--muted)
 .layer-thumb img { width: 100%; height: 100%; object-fit: contain; }
 .layer-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .layer-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.layer-actions > button { flex: 1; padding: 5px; font-size: 11px; white-space: nowrap; }
-.add-layer-wrap { position: relative; flex: 2; display: flex; }
-.add-layer-wrap > button { width: 100%; font-weight: bold; color: var(--purple); background: var(--purple-bg); border-color: #d0c4ff; }
-.add-layer-wrap > button:hover { background: #e5dbff; }
-.dropdown-menu { position: absolute; top: 100%; left: 0; right: 0; z-index: 100; margin-top: 4px; padding: 4px; display: flex; flex-direction: column; gap: 2px; background: #fff; border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.1); }
-.dropdown-menu.hidden { display: none; }
-.dropdown-menu button { display: flex; align-items: center; gap: 6px; padding: 6px; text-align: left; background: transparent; border: none; border-radius: 4px; }
-.dropdown-menu button:hover { background: var(--hover); }
 
 /* ===== 비율 ===== */
 .ratio-scroll-wrap { position: relative; width: 100%; padding: 0 20px; }
@@ -135,11 +131,12 @@ legend { padding: 0 4px; font-size: 12px; font-weight: bold; color: var(--muted)
 /* ===== 저장 / 템플릿 ===== */
 .btn-png { display: block; width: 100%; margin-bottom: 6px; padding: 8px; font-size: 13px; font-weight: bold; color: #fff; background: var(--accent); border: none; }
 .btn-png:hover { background: var(--accent); filter: brightness(.92); }
-#template-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-#template-list li { display: flex; align-items: center; gap: 4px; padding: 4px 6px; font-size: 12px; background: var(--field); border: 1px solid var(--border); border-radius: 4px; }
+
+#template-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+#template-list li { display: flex; align-items: center; gap: 4px; padding: 6px; font-size: 12px; background: var(--field); border: 1px solid var(--border); border-radius: 6px; flex-wrap: wrap; }
 #template-list li.empty { justify-content: center; padding: 8px; font-style: italic; color: var(--muted); }
-#template-list .tname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#template-list button { padding: 2px 6px; font-size: 11px; background: #fff; }
+#template-list .tname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: bold; }
+#template-list button { padding: 4px 6px; font-size: 11px; background: #fff; flex: 1; white-space: nowrap; }
 
 /* ===== 토스트 / 드롭 오버레이 ===== */
 #toast { position: fixed; left: 50%; bottom: 16px; z-index: 10000; transform: translate(-50%, 20px); padding: 8px 14px; font-size: 13px; color: #fff; background: #1a1a1a; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.2); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; }

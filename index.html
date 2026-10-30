@@ -101,7 +101,6 @@
 
     <!-- ===== 컨트롤 패널 ===== -->
     <div class="controls">
-      <!-- ★ 항상 보이는 실행 취소 / 다시 실행 버튼 -->
       <div class="history-actions">
         <button type="button" id="undo-btn" title="실행 취소 (Ctrl+Z)">↶ 실행 취소</button>
         <button type="button" id="redo-btn" title="다시 실행 (Ctrl+Shift+Z)">↷ 다시 실행</button>
@@ -109,16 +108,14 @@
 
       <fieldset>
         <legend>레이어 (위가 가장 앞)</legend>
+        <!-- ★ 첫 화면에 바로 보이는 추가 버튼 (C03) -->
+        <div class="quick-add-row">
+          <button type="button" id="quick-add-media">🖼️ 사진 추가</button>
+          <button type="button" id="quick-add-text">📝 텍스트 추가</button>
+        </div>
         <ul id="layer-list" class="layer-list"></ul>
         <div class="layer-actions">
-          <div class="add-layer-wrap">
-            <button type="button" id="add-layer-btn">+ 레이어 추가</button>
-            <div id="add-layer-menu" class="dropdown-menu hidden">
-              <button type="button" id="menu-add-text">📝 텍스트 추가</button>
-              <button type="button" id="menu-add-media">🖼️ 사진 추가</button>
-            </div>
-          </div>
-          <button type="button" id="delete-layer-btn" class="danger">삭제</button>
+          <button type="button" id="delete-layer-btn" class="danger" style="flex: 1;">선택 레이어 삭제</button>
         </div>
       </fieldset>
 
@@ -168,7 +165,7 @@
       <fieldset>
         <legend>템플릿</legend>
         <input type="text" id="template-name" placeholder="템플릿 이름" />
-        <button type="button" id="save-template-btn" class="btn-block">템플릿 저장</button>
+        <button type="button" id="save-template-btn" class="btn-block">새 템플릿으로 저장</button>
         <ul id="template-list"></ul>
       </fieldset>
     </div>
