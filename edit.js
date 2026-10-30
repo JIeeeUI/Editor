@@ -60,7 +60,7 @@ function toast(msg) {
   el.textContent = msg;
   el.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove("show"), 3000); // 1800ms -> 3000ms로 증가 (C10)
+  toastTimer = setTimeout(() => el.classList.remove("show"), 3000);
 }
 
 function downloadBlob(blob, filename) {
@@ -153,7 +153,7 @@ function updateHistoryButtons() {
 }
 
 /* =========================================================
-   3. 이미지 로딩 (Data URL 변환 및 리사이징) - C21, C22 해결
+   3. 이미지 로딩 (Data URL 변환 및 리사이징)
    ========================================================= */
 function loadMediaElement(src) {
   return new Promise((resolve, reject) => {
@@ -164,7 +164,6 @@ function loadMediaElement(src) {
   });
 }
 
-// 파일을 Data URL로 변환하고 크기를 줄이는 헬퍼 함수
 function fileToDataURL(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -186,7 +185,6 @@ function fileToDataURL(file) {
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, width, height);
         
-        // PNG는 투명도 유지를 위해 PNG로, JPEG는 0.85 품질로 저장
         const isPng = file.type === "image/png";
         const dataUrl = canvas.toDataURL(isPng ? "image/png" : "image/jpeg", isPng ? undefined : 0.85);
         resolve({ dataUrl, width, height });
@@ -201,7 +199,7 @@ function fileToDataURL(file) {
 
 async function addMediaLayer(file, isBatch = false) {
   if (file.type !== "image/png" && file.type !== "image/jpeg") {
-    return `"${file.name}" 파일은 지원하지 않는 형식입니다. (PNG, JPEG만 가능)`; // C10
+    return `"${file.name}" 파일은 지원하지 않는 형식입니다. (PNG, JPEG만 가능)`;
   }
 
   try {
@@ -213,7 +211,6 @@ async function addMediaLayer(file, isBatch = false) {
     const [W, H] = RATIOS[state.ratio];
     const dh = W * originalRatio;
     
-    // 세로로 긴 이미지가 캔버스를 넘지 않도록 초기 스케일 조정 (C15)
     let initScale = 1;
     if (dh > H) initScale = H / dh;
 
@@ -250,7 +247,6 @@ async function handleMultipleFiles(files) {
   }
 
   if (errors.length > 0) {
-    // 여러 개 중 실패한 것이 있으면 실패 이유 표시 (C10)
     toast(errors.join("\n"));
   } else if (okCount > 0) {
     toast(`${okCount}개의 파일이 추가되었습니다.`);
@@ -632,7 +628,6 @@ function renderTemplateList() {
   const list = getTemplates();
   if (!list.length) { ul.innerHTML = '<li class="empty">저장된 템플릿이 없습니다.</li>'; return; }
   
-  // 덮어쓰기, 이름변경, 불러오기, 삭제 버튼 추가 (C19)
   ul.innerHTML = list.map((t) =>
     `<li data-id="${escapeHtml(t.id)}">
       <span class="tname">${escapeHtml(t.name)}</span>
@@ -890,16 +885,24 @@ function closePopovers() {
   document.querySelectorAll(".tb-popover").forEach((p) => p.classList.remove("show"));
 }
 
+// ★ 팝오버가 화면을 넘어가지 않도록 위치 계산 강화
 function togglePopover(pop, btn) {
   const willOpen = !pop.classList.contains("show");
   closePopovers();
   if (!willOpen) return;
   pop.classList.add("show");
-  const wrap = pop.parentElement.getBoundingClientRect();
-  const b = btn.getBoundingClientRect();
-  const left = Math.max(0, Math.min(b.right - wrap.left - pop.offsetWidth, wrap.width - pop.offsetWidth));
+  
+  const wrapRect = pop.parentElement.getBoundingClientRect();
+  const btnRect = btn.getBoundingClientRect();
+  const popWidth = pop.offsetWidth;
+  
+  // 화면 밖으로 밀려나지 않도록 X 좌표 조정
+  let left = btnRect.right - wrapRect.left - popWidth;
+  if (left < 10) left = 10; // 왼쪽 최소 여백
+  if (left + popWidth > wrapRect.width - 10) left = wrapRect.width - popWidth - 10; // 오른쪽 최소 여백
+  
   pop.style.left = left + "px";
-  pop.style.top = b.bottom - wrap.top + 8 + "px";
+  pop.style.top = btnRect.bottom - wrapRect.top + 8 + "px";
 }
 
 function bindPopover(btnId, popId) {
@@ -958,7 +961,6 @@ function bindImageToolbarEvents() {
 }
 
 function bindLayerEvents() {
-  // ★ 첫 화면 노출 버튼들 (C03)
   $("quick-add-text").onclick = () => {
     pushHistory();
     const y = 0.3 + state.layers.length * 0.05;
@@ -1031,7 +1033,6 @@ function bindOutputEvents() {
     e.target.value = "";
   };
 
-  // ★ 템플릿 액션 분기 (덮어쓰기, 이름변경 추가) - C19
   $("template-list").onclick = (e) => {
     const btn = e.target.closest("button");
     const id = btn?.closest("li")?.dataset.id;
