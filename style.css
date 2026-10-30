@@ -44,7 +44,7 @@ main { flex: 1; min-height: 0; width: 100%; max-width: 1400px; margin: 0 auto; p
 .tb-input-wrap button { padding: 4px 8px; font-size: 15px; font-weight: bold; background: transparent; border: none; cursor: pointer; }
 .tb-input-wrap button:hover { background: #e5e7eb; border-radius: 4px; }
 .tb-input-wrap input { width: 38px; text-align: center; font-size: 14px; font-weight: bold; background: transparent; border: none; outline: none; }
-.tb-popover { position: absolute; top: calc(100% + 8px); right: 0; width: 220px; display: none; flex-direction: column; gap: 10px; padding: 12px; background: #fff; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.1); z-index: 1001; }
+.tb-popover { position: absolute; width: 220px; display: none; flex-direction: column; gap: 10px; padding: 12px; background: #fff; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.1); z-index: 1001; }
 .tb-popover.show { display: flex; }
 .tb-popover label { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
 .tb-popover input[type="range"] { width: 100%; }

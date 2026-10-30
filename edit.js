@@ -808,7 +808,21 @@ function editMedia(fn, { sync = false } = {}) {
   sync ? syncControls() : null;
   requestRender();
 }
+function closePopovers() {
+  document.querySelectorAll(".tb-popover").forEach((p) => p.classList.remove("show"));
+}
 
+function togglePopover(pop, btn) {
+  const willOpen = !pop.classList.contains("show");
+  closePopovers();
+  if (!willOpen) return;
+  pop.classList.add("show");
+  const wrap = pop.parentElement.getBoundingClientRect();
+  const b = btn.getBoundingClientRect();
+  const left = Math.max(0, Math.min(b.right - wrap.left - pop.offsetWidth, wrap.width - pop.offsetWidth));
+  pop.style.left = left + "px";
+  pop.style.top = b.bottom - wrap.top + 8 + "px";
+}
 function bindToolbarEvents() {
   $("tb-font-family").onchange = (e) => editText((L) => (L.fontFamily = e.target.value));
   $("tb-size-minus").onclick = () => editText((L) => (L.fontSize = Math.max(10, L.fontSize - 5)));
@@ -823,15 +837,11 @@ function bindToolbarEvents() {
   $("tb-color-input").oninput = (e) => editText((L) => (L.color = e.target.value));
   ["left", "center", "right"].forEach((a) => ($("tb-align-" + a).onclick = () => editText((L) => (L.align = a))));
 
-  const popover = $("spacing-popover");
-  $("tb-spacing-btn").onclick = (e) => { e.stopPropagation(); popover.classList.toggle("show"); };
-  
-  document.addEventListener("click", () => {
-    popover.classList.remove("show");
-    $("crop-popover").classList.remove("show");
-  });
-  
-  popover.onclick = (e) => e.stopPropagation();
+const popover = $("spacing-popover");
+$("tb-spacing-btn").onclick = (e) => { e.stopPropagation(); togglePopover(popover, e.currentTarget); };
+document.addEventListener("click", closePopovers);
+popover.onclick = (e) => e.stopPropagation();
+$("floating-toolbar").addEventListener("scroll", closePopovers);
 
   $("tb-letter-spacing").oninput = (e) => editText((L) => (L.letterSpacing = Number(e.target.value)));
   $("tb-line-height").oninput = (e) => editText((L) => (L.lineHeight = Number(e.target.value)));
@@ -880,7 +890,7 @@ function bindImageToolbarEvents() {
 
   const cropBtn = $("img-crop-btn");
   const cropPopover = $("crop-popover");
-  cropBtn.onclick = (e) => { e.stopPropagation(); cropPopover.classList.toggle("show"); };
+  cropBtn.onclick = (e) => { e.stopPropagation(); togglePopover(cropPopover, cropBtn); };
   cropPopover.onclick = (e) => e.stopPropagation();
 
   const onCropChange = () => {
