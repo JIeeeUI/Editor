@@ -841,7 +841,6 @@ const popover = $("spacing-popover");
 $("tb-spacing-btn").onclick = (e) => { e.stopPropagation(); togglePopover(popover, e.currentTarget); };
 document.addEventListener("click", closePopovers);
 popover.onclick = (e) => e.stopPropagation();
-$("floating-toolbar").addEventListener("scroll", closePopovers);
 
   $("tb-letter-spacing").oninput = (e) => editText((L) => (L.letterSpacing = Number(e.target.value)));
   $("tb-line-height").oninput = (e) => editText((L) => (L.lineHeight = Number(e.target.value)));
