@@ -112,10 +112,12 @@ async function addMediaLayer(file, isBatch = false) {
     const duration = isVideo ? el.duration : 0;
     const jitter = () => (isBatch ? (Math.random() - 0.5) * 0.15 : 0);
 
+    // ★ 수정: crop 객체를 독립적으로 복사하여 다른 이미지와 공유되지 않도록 함
     const layer = {
       ...DEFAULT_MEDIA, id: uuid(), type: isVideo ? "video" : "image",
       src, originalRatio, endTime: duration, duration,
       x: 0.5 + jitter(), y: 0.5 + jitter(),
+      crop: { top: 0, right: 0, bottom: 0, left: 0 }
     };
     state.layers.push(layer);
     state.selectedLayerId = layer.id;
@@ -180,16 +182,17 @@ function getHandles(L, W, H) {
     const t = layoutText(measureCtx, L, W);
     box = { left: -t.width / 2, top: -t.height / 2, w: t.width, h: t.height };
   } else if (isMedia(L)) {
-    const w = W;
-    let h = W * L.originalRatio;
-    
+    // ★ 수정: 자르기 비율에 맞춰 박스 크기(w, h)도 함께 줄어들도록 계산
+    let cw = 1, ch = 1;
     if (L.crop) {
-      const cw = 1 - L.crop.left - L.crop.right;
-      const ch = 1 - L.crop.top - L.crop.bottom;
-      if (cw > 0.01 && ch > 0.01) {
-        h = w * L.originalRatio * (ch / cw);
-      }
+      cw = 1 - L.crop.left - L.crop.right;
+      ch = 1 - L.crop.top - L.crop.bottom;
+      if (cw <= 0.01) cw = 0.01;
+      if (ch <= 0.01) ch = 0.01;
     }
+    
+    const w = W * cw;
+    const h = W * L.originalRatio * ch;
     box = { left: -w / 2, top: -h / 2, w, h };
   } else return null;
 
@@ -307,22 +310,27 @@ function renderCard(ctx, W, H) {
         const s = 1 + (L.saturation || 0) / 100;
         ctx.filter = `brightness(${b}) contrast(${c}) saturate(${s}) hue-rotate(${L.hue || 0}deg)`;
 
-        const dw = W;
-        let dh = W * L.originalRatio;
-        
-        let sx = 0, sy = 0, sw = media.width, sh = media.height;
+        // ★ 수정: 포토샵 스타일 자르기 (비율 유지, 억지로 늘리지 않음)
+        let cw = 1, ch = 1;
         if (L.crop) {
-          const cw = 1 - L.crop.left - L.crop.right;
-          const ch = 1 - L.crop.top - L.crop.bottom;
-          if (cw > 0.01 && ch > 0.01) {
-            sx = media.width * L.crop.left;
-            sy = media.height * L.crop.top;
-            sw = media.width * cw;
-            sh = media.height * ch;
-            dh = dw * L.originalRatio * (ch / cw);
-          }
+          cw = 1 - L.crop.left - L.crop.right;
+          ch = 1 - L.crop.top - L.crop.bottom;
         }
-        ctx.drawImage(media, sx, sy, sw, sh, -dw / 2, -dh / 2, dw, dh);
+
+        if (cw > 0.01 && ch > 0.01) {
+          const sx = media.width * (L.crop?.left || 0);
+          const sy = media.height * (L.crop?.top || 0);
+          const sw = media.width * cw;
+          const sh = media.height * ch;
+
+          // 자른 비율만큼 실제 그려질 영역도 줄어듦
+          const dw = W * cw;
+          const dh = W * L.originalRatio * ch;
+
+          ctx.drawImage(media, sx, sy, sw, sh, -dw / 2, -dh / 2, dw, dh);
+        } else {
+          ctx.drawImage(media, -W / 2, -(W * L.originalRatio) / 2, W, W * L.originalRatio);
+        }
         ctx.filter = "none";
       }
       ctx.restore();
@@ -595,7 +603,8 @@ async function applyDoc(doc) {
         n.contrast ??= 0;
         n.saturation ??= 0;
         n.hue ??= 0;
-        n.crop ??= { top: 0, right: 0, bottom: 0, left: 0 };
+        // 데이터 로드 시에도 crop 객체 독립성 보장
+        n.crop = { ...(l.crop || { top: 0, right: 0, bottom: 0, left: 0 }) };
       }
       return n;
     });
